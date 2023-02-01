@@ -6,14 +6,16 @@ The code implementation of ASTRAL, along with other baseline and competittive me
 
 ## Installation
 
-- For ASTRAL, FedAvg, FairFL*, and FairFed*, create a new Python 3.9 environment using conda or venv then :
+### ASTRAL, FerFaid*, FairFL*, FedAvg
+Create a new Python 3.9 environment using conda or venv then :
 
 ```bash
 cd ASTRAL
 pip install -r requirements.txt
 ```
 
-- For FCFL create a separate Python 3.7 environment using conda or venv then :
+### FCFL
+Create a separate Python 3.7 environment using conda or venv then :
 
 ```bash
 cd FCFL
@@ -32,4 +34,4 @@ cd ASTRAL
 python ./code/ASTRAL/Astral.py settings/Adult/ASTRAL/ASTRAL-single-SA.json
 ```
 ### FCFL
-see ```ASTRAL/code/FCFL/README.md```.
+See ```ASTRAL/code/FCFL/README.md```.
