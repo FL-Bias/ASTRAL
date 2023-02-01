@@ -21,7 +21,8 @@ pip install -r requirements.txt
 ```
 
 ## Usage
-- To launch an experiment, use the script ASTRAL/code/Astral.py and the json configuration file correponding to the experiment. Json files for different datasets and data distribution can be found in ASTRAL/settings/
+### ASTRAL, FerFaid*, FairFL*, FedAvg
+To launch an experiment, use the script ```ASTRAL/code/Astral.py``` and the json configuration file correponding to the experiment. Json files for different datasets and data distribution can be found in ```ASTRAL/settings/```
 
 Example: launching ASTRAL on a FL scenario consisting of: Adult, 10 clients, single the sensitive attribute considered by ASTRAL.
 The command is the following:
@@ -30,3 +31,5 @@ The command is the following:
 cd ASTRAL
 python ./code/ASTRAL/Astral.py settings/Adult/ASTRAL/ASTRAL-single-SA.json
 ```
+### FCFL
+see ```FCFL/README.md```.
