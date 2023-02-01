@@ -37,10 +37,10 @@
       "target_var_name":"UTILIZATION",
       "nb_classes":2,
       "nb_features":134,
-      "validation_set_path":"../../../Privacy_meets_fairness/astral-datasets/version_ASTRAL/ScenarioMEPS_remainder/preprocessed/valid.csv",
-      "test_set_path":"../../../Privacy_meets_fairness/astral-datasets/version_ASTRAL/ScenarioMEPS_remainder/preprocessed/test.csv", 
+      "validation_set_path":"./datasets/MEPS/valid.csv",
+      "test_set_path":"./datasets/MEPS/test.csv", 
       "standardization":1,
-      "clients_train_sets_path":"../../../Privacy_meets_fairness/astral-datasets/version_ASTRAL/ScenarioMEPS_remainder/preprocessed/train"
+      "clients_train_sets_path":"./datasets/MEPS/train"
    },
    "bias_mitigation_info":{
       "bias_mitigation_name":"PW",

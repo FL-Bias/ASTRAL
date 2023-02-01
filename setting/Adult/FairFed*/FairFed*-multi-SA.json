@@ -6,7 +6,7 @@
       "ratio_of_participating_clients":1,
       "participants_selection_method":"random",
       "aggregation_method":"fed_avg",
-      "metrics_collection_path":"../../astral-experiments/Adult-Three-SA/Fed-Avg-Rwgt",
+      "metrics_collection_path":"./metrics",
       "warmup":1
    },
    "fl_data_preparation_info":{
@@ -37,10 +37,10 @@
       "target_var_name":"income",
       "nb_classes":2,
       "nb_features":100,
-      "validation_set_path":"../../astral-datasets/Adult/Adult-distrib/non-iid/valid.csv",
-      "test_set_path":"../../astral-datasets/Adult/Adult-distrib/non-iid/test.csv",
+      "validation_set_path":"./datasets/Adult/valid.csv",
+      "test_set_path":"./datasets/Adult/test.csv",
       "standardization":1,
-      "clients_train_sets_path":"../../astral-datasets/Adult/Adult-distrib/non-iid/train_1"
+      "clients_train_sets_path":"./datasets/Adult/train"
    },
    "bias_mitigation_info":{
       "bias_mitigation_name": "IBW", 

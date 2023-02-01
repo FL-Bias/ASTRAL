@@ -37,10 +37,10 @@
       "target_var_name":"income",
       "nb_classes":2,
       "nb_features":100,
-      "validation_set_path":"../../astral-datasets/version_ASTRAL/Adult_non_id_1_age/valid.csv",
-      "test_set_path":"../../astral-datasets/version_ASTRAL/Adult_non_id_1_age/test.csv",
+      "validation_set_path":"./datasets/Adult/valid.csv",
+      "test_set_path":"./datasets/Adult/test.csv",
       "standardization":1,
-      "clients_train_sets_path":"../../astral-datasets/version_ASTRAL/Adult_non_id_1_age/train"
+      "clients_train_sets_path":"./datasets/Adult/train"
    },
    "bias_mitigation_info":{
       "bias_mitigation_name":"PW",

@@ -36,10 +36,10 @@
       "target_var_name":"income",
       "nb_classes":2,
       "nb_features":100,
-      "validation_set_path":"../../astral-datasets/Adult/Adult-distrib/valid.csv",
-      "test_set_path":"../../astral-datasets/Adult/Adult-distrib/test.csv",
+      "validation_set_path":"./datasets/Adult/valid.csv",
+      "test_set_path":"./datasets/Adult/test.csv",
       "standardization":1,
-      "clients_train_sets_path":"../../astral-datasets/Adult/Adult-distrib/non-iid/train_1"
+      "clients_train_sets_path":"./datasets/Adult/train"
    },
 
    "remark":"FedAvg on Adult with 10 FL clients non-IID SPD < 0.03 (alpha=1 --three sensitive attributes)"
