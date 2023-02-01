@@ -1,0 +1,54 @@
+{
+   "fl_parameters":{
+      "nb_runs":1,
+      "nb_rounds":250,
+      "nb_clients":10,
+      "ratio_of_participating_clients":1,
+      "participants_selection_method":"random",
+      "aggregation_method":"fed_avg",
+      "metrics_collection_path":"../../astral-experiments/Adult_experiments/Fed-Avg-Rwgt/Metrics/3_SA",
+      "warmup":1
+   },
+   "fl_data_preparation_info":{
+      "initial_data_preparation":0,
+      "save_generated_datasets":0
+   },
+   "learning_info":{
+      "model_name":"Logistic regression",
+      "model_class":"LogisticRegressionPytorch",
+      "nb_inputs":100,
+      "nb_outputs":2,
+      "nb_epochs":100,
+      "batch_size":128,
+      "learning_rate":0.001,
+      "learning_rate_type":"dynamic",
+      "learning_rate_frequency":10,
+      "learning_rate_fraction":2,
+      "learning_rate_min":1e-07,
+      "weight_decay":0.05,
+      "optimizer_class":"SGD",
+      "loss_class":"BCEWithLogitsLoss",
+      "warmup_parameters_path":"../../astral-experiments/warmup_models_ASTRAL/LogisticPytorch_Adult_sex_race_age_new_privileged",
+      "byzantine":0
+   },
+   "data_info":{
+      "name":"Adult 10 FL Clients non-IID",
+      "sensitive_att_name":["race","sex","age"],
+      "target_var_name":"income",
+      "nb_classes":2,
+      "nb_features":100,
+      "validation_set_path":"../../astral-datasets/version_ASTRAL/Adult_non_id_1_age/valid.csv",
+      "test_set_path":"../../astral-datasets/version_ASTRAL/Adult_non_id_1_age/test.csv",
+      "standardization":1,
+      "clients_train_sets_path":"../../astral-datasets/version_ASTRAL/Adult_non_id_1_age/train"
+   },
+   "bias_mitigation_info":{
+      "bias_mitigation_name": "IBW", 
+      "fairness_metric_name": "Statistical Parity Difference",
+      "alpha": 1, 
+      "beta": 10
+   },
+
+   "remark":"FedAvg+Rwgt on Adult with 10 FL clients non-IID SPD < 0.03 (alpha=0.02 --three sensitive attributes)"
+}
+

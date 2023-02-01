@@ -1,0 +1,53 @@
+{
+   "fl_parameters":{
+      "nb_runs":1,
+      "nb_rounds":40,
+      "nb_clients":5,
+      "ratio_of_participating_clients":1,
+      "participants_selection_method":"random",
+      "aggregation_method":"fed_avg",
+      "metrics_collection_path":"./astral-experiments/KDD_nonIID_experiments/age+gender+race/KDD_nonIID_FedAvg+Rwgt_single/Metrics",
+      "warmup":1
+   },
+   "fl_data_preparation_info":{
+      "initial_data_preparation":0,
+      "save_generated_datasets":0
+   },
+   "learning_info":{
+      "model_name":"Logistic regression",
+      "model_class":"LogisticRegressionPytorch",
+      "nb_inputs":394,
+      "nb_outputs":2,
+      "nb_epochs":3,
+      "batch_size":128,
+      "learning_rate":0.001,
+      "learning_rate_type":"dynamic",
+      "learning_rate_frequency":10,
+      "learning_rate_fraction":2,
+      "learning_rate_min":1e-07,
+      "weight_decay":0.05,
+      "optimizer_class":"SGD",
+      "loss_class":"BCEWithLogitsLoss",
+      "warmup_parameters_path":"./astral-datasets/Configurations/logisticPytorch_KDD_age_gender_race",
+      "byzantine":0
+   },
+   "data_info":{
+      "name":"KDD",
+      "sensitive_att_name":"age",
+      "target_var_name":"income",
+      "nb_classes":2,
+      "nb_features":394,
+      "validation_set_path":"./astral-datasets/KDD-10FLClients-nonIID/KDD_age+gender+race/age-002/valid.csv",
+      "test_set_path":"./astral-datasets/KDD-10FLClients-nonIID/KDD_age+gender+race/age-002/test.csv",
+      "standardization":1,
+      "clients_train_sets_path":"./astral-datasets/KDD-10FLClients-nonIID/KDD_age+gender+race/age-002/train"
+   },
+   "bias_mitigation_info":{
+      "bias_mitigation_name": "IBW", 
+      "fairness_metric_name": "Statistical Parity Difference",
+      "alpha": 0.2, 
+      "beta": 50
+   },
+   "remark":"FedAvg on KDD with 5 FL clients"
+}
+
