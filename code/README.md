@@ -1,12 +1,12 @@
-# ASTRAL-Code
+# Code
 
 ## Description
 
-The code implementation of ASTRAL: BiAS MiTigation in FedeRAted Learning, including baseline and competittive methods.
+The code implementation of ASTRAL, along with other baseline and competittive methods.
 
 ## Installation
 
-- For ASTRAL, FedAvg and naive bias mitigation policy, create a new Python 3.9 environment using conda or venv then :
+- For ASTRAL, FedAvg, FairFL*, and FairFed*, create a new Python 3.9 environment using conda or venv then :
 
 ```bash
 cd ASTRAL
