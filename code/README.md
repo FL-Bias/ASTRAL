@@ -32,4 +32,4 @@ cd ASTRAL
 python ./code/ASTRAL/Astral.py settings/Adult/ASTRAL/ASTRAL-single-SA.json
 ```
 ### FCFL
-see ```FCFL/README.md```.
+see ```ASTRAL/code/FCFL/README.md```.
