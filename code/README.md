@@ -24,14 +24,14 @@ pip install -r requirements.txt
 
 ## Usage
 ### ASTRAL, FerFaid*, FairFL*, FedAvg
-To launch an experiment, use the script ```ASTRAL/code/Astral.py``` and the json configuration file correponding to the experiment. Json files for different datasets and data distribution can be found in ```ASTRAL/settings/```
+To launch an experiment, use the script ```ASTRAL/Astral.py``` and the json configuration file correponding to the experiment. Json files for different datasets and data distribution can be found in ```../../settings/```
 
 Example: launching ASTRAL on a FL scenario consisting of: Adult, 10 clients, single the sensitive attribute considered by ASTRAL.
 The command is the following:
 
 ```bash
 cd ASTRAL
-python ./code/ASTRAL/Astral.py settings/Adult/ASTRAL/ASTRAL-single-SA.json
+python Astral.py ../../settings/Adult/ASTRAL/ASTRAL-single-SA.json
 ```
 ### FCFL
 See ```ASTRAL/code/FCFL/README.md```.
