@@ -31,7 +31,7 @@ The command is the following:
 
 ```bash
 cd ASTRAL
-python ./code/ASTRAL/Astral.py settings/Adult/ASTRAL/ASTRAL-single-SA.json
+python Astral.py ../../settings/Adult/ASTRAL/ASTRAL-single-SA.json
 ```
 ### FCFL
 See ```ASTRAL/code/FCFL/README.md```.
