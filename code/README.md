@@ -29,8 +29,8 @@ To launch the baseline FedAvg, ASTRAL/Astral.py can be used.
 Example: for launching FedAvg on a FL scenario consisting of: KDD, 5 clients, the command is the following:
 
 ```bash
-cd ASTRAL
-python Astral.py ../../settings/KDD/FedAvg/FedAvg-single-SA.json
+cd ../
+python ./code/ASTRAL/Astral.py ./settings/KDD/FedAvg/FedAvg-single-SA.json
 ```
 
 ### ASTRAL, FerFaid*, FairFL*
@@ -41,8 +41,8 @@ To launch an experiment applying the bias mitigation method "X", use the script 
 Example: for launching ASTRAL on a FL scenario consisting of: KDD, 5 clients, a single sensitive attribute considered by ASTRAL; the command is the following:
 
 ```bash
-cd ASTRAL
-python Astral.py ../../settings/KDD/ASTRAL/ASTRAL-single-SA.json
+cd ../
+python ./code/ASTRAL/Astral.py ./settings/KDD/ASTRAL/ASTRAL-single-SA.json
 ```
 
 
