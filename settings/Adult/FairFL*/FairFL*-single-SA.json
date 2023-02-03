@@ -28,7 +28,7 @@
       "weight_decay":0.05,
       "optimizer_class":"SGD",
       "loss_class":"BCEWithLogitsLoss",
-      "warmup_parameters_path":"../../astral-experiments/warmup_models_ASTRAL/LogisticPytorch_Adult_sex_race_age_new_privileged",
+      "warmup_parameters_path":"./datasets/Adukt/initial_model",
       "byzantine":0
    },
    "data_info":{

@@ -28,7 +28,7 @@
       "weight_decay":0.05,
       "optimizer_class":"SGD",
       "loss_class":"BCEWithLogitsLoss",
-      "warmup_parameters_path":"../../../Privacy_meets_fairness/astral-experiments/warmup_models_ASTRAL/LogisticPytorch_MEPS_sex_race_privileged",
+      "warmup_parameters_path":"./datasets/MEPS/initial_model",
       "byzantine":0
    },
    "data_info":{

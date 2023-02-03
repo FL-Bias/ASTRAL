@@ -28,7 +28,7 @@
       "weight_decay":0.05,
       "optimizer_class":"SGD",
       "loss_class":"BCEWithLogitsLoss",
-      "warmup_parameters_path":"astral-settings/warmup_models/gender/LogisticPytorch_Dutch_sex_standard2",
+      "warmup_parameters_path":"./datasets/DC/initial_model",
       "byzantine":0
    },
    "data_info":{
