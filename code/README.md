@@ -30,7 +30,7 @@ Example: for launching FedAvg on a FL scenario consisting of: KDD, 5 clients, th
 
 ```bash
 cd ../
-python ./code/ASTRAL/Astral.py ./settings/KDD/FedAvg/FedAvg-single-SA.json
+python ./code/ASTRAL/Astral.py ./settings/KDD/FedAvg/FedAvg.json
 ```
 
 ### ASTRAL, FerFaid*, FairFL*
