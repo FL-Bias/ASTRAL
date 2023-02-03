@@ -35,7 +35,7 @@ class RegressionTrain(torch.nn.Module):
         #* warmup
         if warmup == "Adult-":
             #with open('../../astral-experiments/warmup_models_ASTRAL/logisticPytorch_Adult', "rb") as f:  # Unpickling
-            with open('../../astral-experiments/warmup_models_ASTRAL/LogisticPytorch_Adult_sex_race_age_new_privileged', "rb") as f:  # Unpickling
+            with open('./datasets/Adult/initial_model', "rb") as f:  # Unpickling
                 weights = pickle.load(f)
             dict={'layers.0.weight': torch.tensor([weights[:-1]]), 'layers.0.bias': torch.tensor([weights[-1]]) }
             model.load_state_dict(dict, strict=True)
@@ -47,19 +47,18 @@ class RegressionTrain(torch.nn.Module):
             model.load_state_dict(dict, strict=True)
         if warmup == "KDD":
             #with open('../../astral-experiments/warmup_models_ASTRAL/LogisticPytorch_Adult_race_new_privileged', "rb") as f:  # Unpickling
-            with open('../../astral-datasets/Configurations/logisticPytorch_KDD_age_gender_race', "rb") as f:  # Unpickling
+            with open('./datasets/KDD/initial_model', "rb") as f:  # Unpickling
                 weights = pickle.load(f)
             dict={'layers.0.weight': torch.tensor([weights[:-1]]), 'layers.0.bias': torch.tensor([weights[-1]]) }
             model.load_state_dict(dict, strict=True)
         elif warmup == "MEPS":
             #with open('../../astral-experiments/warmup_models_ASTRAL/logisticPytorch_MEPS_fcfl', "rb") as f:  # Unpickling
-            with open('../../astral-experiments/warmup_models_ASTRAL/LogisticPytorch_MEPS_sex_race_privileged', "rb") as f:  # Unpickling
+            with open('./datasets/MEPS/initial_model', "rb") as f:  # Unpickling
                 weights = pickle.load(f)
             dict={'layers.0.weight': torch.tensor([weights[:-1]]), 'layers.0.bias': torch.tensor([weights[-1]]) }
             model.load_state_dict(dict, strict=True)
         elif warmup == "Dutch":
-            with open('../../astral-experiments/warmup_models_ASTRAL/LogisticPytorch_Dutch_sex_standard2attr',
-                      "rb") as f:  # Unpickling
+            with open('./datasets/DC/initial_model',"rb") as f:  # Unpickling
                 weights = pickle.load(f)
             dict = {'layers.0.weight': torch.tensor([weights[:-1]]), 'layers.0.bias': torch.tensor([weights[-1]])}
             model.load_state_dict(dict, strict=True)
