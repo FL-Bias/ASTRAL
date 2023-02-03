@@ -23,15 +23,29 @@ pip install -r requirements.txt
 ```
 
 ## Usage
-### ASTRAL, FerFaid*, FairFL*, FedAvg
-To launch an experiment applying the bias mitigation method X, use the script ```{X}/{X}.py``` and the json configuration file correponding to the experiment. Json files for different datasets and data distribution can be found in ```../../settings/{dataset}/{X}/```
+### FedAVg
+To launch the baseline FedAvg, ASTRAL/Astral.py can be used.
 
-Example: launching ASTRAL on a FL scenario consisting of: Adult, 10 clients, single the sensitive attribute considered by ASTRAL.
-The command is the following:
+Example: for launching FedAvg on a FL scenario consisting of: KDD, 5 clients, the command is the following:
 
 ```bash
 cd ASTRAL
-python Astral.py ../../settings/Adult/ASTRAL/ASTRAL-single-SA.json
+python Astral.py ../../settings/KDD/FedAvg/FedAvg-single-SA.json
 ```
+
+### ASTRAL, FerFaid*, FairFL*
+
+To launch an experiment applying the bias mitigation method "X", use the script ```{X}/{X}.py``` and the json configuration file correponding to the experiment. Json files for different datasets and methods can be found in ```../../settings/{dataset}/{X}/```
+
+
+Example: for launching ASTRAL on a FL scenario consisting of: KDD, 5 clients, a single sensitive attribute considered by ASTRAL; the command is the following:
+
+```bash
+cd ASTRAL
+python Astral.py ../../settings/KDD/ASTRAL/ASTRAL-single-SA.json
+```
+
+
+
 ### FCFL
-See ```ASTRAL/code/FCFL/README.md```.
+See ```FCFL/README.md```.
