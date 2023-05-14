@@ -2,7 +2,7 @@
 
 ## Description
 
-The repository of ASTRAL: Accurate Bias Mitigation at Scale in Federated Learning.
+The repository of "Bias Mitigation in Federated Learning for Edge Computing".
 
 ## Usage
 - The source code of ASTRAL and different implemented baselines and competitors, along with instructions to run the code (see ```code/README.md```) are in ```code```.
