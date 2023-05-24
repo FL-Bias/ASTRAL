@@ -3,7 +3,7 @@ import copy
 import time
 from multiprocessing.sharedctypes import Value
 import torch
-from tensorflow_privacy.privacy.analysis.compute_noise_from_budget_lib import compute_noise
+# from tensorflow_privacy.privacy.analysis.compute_noise_from_budget_lib import compute_noise
 from torch.autograd import Variable
 from functools import reduce
 from numpy.linalg import norm
@@ -53,6 +53,16 @@ class Client(object):
         """Returns the inference accuracy and loss."""
         accuracy, loss, metrics = self.local_model.test_inference(testing_dataset)
         return accuracy, loss, metrics
+    
+    def test_inference_SPD_fairfed(self, testing_dataset):
+        """Returns the inference accuracy and loss."""
+        accuracy, loss, metrics, n_yz = self.local_model.test_inference_SPD_fairfed(testing_dataset)
+        return accuracy, loss, metrics, n_yz
+    
+    def test_inference_EOD_fairfed(self, testing_dataset):
+        """Returns the inference accuracy and loss."""
+        accuracy, loss, metrics, n_yz = self.local_model.test_inference_EOD_fairfed(testing_dataset)
+        return accuracy, loss, metrics, n_yz
 
 class Server(object):
     """docstring for Server"""
@@ -287,13 +297,23 @@ class Server(object):
 
     def test_inference(self):
         # Returns the test accuracy and loss.
-        accuracy, loss, metrics = self.global_model.test_inference(self.testing_dataset, self.test_batch_size)
+        accuracy, loss, metrics= self.global_model.test_inference(self.testing_dataset, self.test_batch_size)
         return accuracy, loss, metrics
 
     def validation(self):
         # Returns the test accuracy and loss. """
         accuracy, loss, metrics = self.global_model.test_inference(self.validation_dataset, self.test_batch_size)
         return accuracy, loss, metrics
+    
+    def test_inference_fairfed(self):
+        # Returns the test accuracy and loss.
+        accuracy, loss, metrics, n_yz_test = self.global_model.test_inference_fairfed_DI(self.testing_dataset, self.test_batch_size)
+        return accuracy, loss, metrics, n_yz_test
+
+    def validation_fairfed(self):
+        # Returns the test accuracy and loss. """
+        accuracy, loss, metrics,n_yz_valid = self.global_model.test_inference_fairfed_DI(self.validation_dataset, self.test_batch_size)
+        return accuracy, loss, metrics,n_yz_valid
 
     def Astral_optim_aggregation2(self, local_models, clients_weights, nc, nb_iterations, eps, FL_rounds):
         hco_lp = HCO_LP(len(clients_weights[0]), len(clients_weights), eps)
@@ -387,7 +407,7 @@ class Server(object):
             print('ITERATION {}'.format(i))
         return(copy.deepcopy(self.global_model))
 
-    def Astral_optim_aggregation_DP(self, local_models, clients_weights, nc, FL_round, byzantine, BiasMitigation_info,clientvalid_metrics):
+    def Astral_optim_aggregation(self, metric_name, local_models, clients_weights, nc, FL_round, byzantine, BiasMitigation_info,clientvalid_metrics):
         start=timer()
         X = self.get_validation_dataset().data.float()
         Y = self.get_validation_dataset().target.float()
@@ -402,24 +422,28 @@ class Server(object):
             for i in range(nb_sa):
                 A_.append(A[i].view(len(A[i]), -1))
         Y_ = Y.view(len(Y), -1)
-        _, _, _, _, _, Y_pred, _ = self.global_model.model(X, Y_, A_)
-        if BiasMitigation_info['variant'] == "fair_obj_loss_const":
+
+        if  BiasMitigation_info['variant'] == "fair_obj_loss_const":
+            _, _, _, _, _, Y_pred, _ = self.global_model.model(X, Y_, A_)
             opt = fair_obj_loss_const_OPT(len(X), len(clients_weights[0]), len(clients_weights), X, Y, Y_pred, A, Theta, self.fed_avg_weights, BiasMitigation_info['eps'], bool(BiasMitigation_info['logs']))
             a = opt.get_alpha()
         elif BiasMitigation_info['variant'] == "loss_obj_fair_const":
+            _, _, _, _, _, Y_pred, _ = self.global_model.model(X, Y_, A_)
             opt = loss_obj_fair_const_OPT(len(X), len(clients_weights[0]), len(clients_weights), X, Y, Y_pred, A, Theta, self.fed_avg_weights, BiasMitigation_info['eps'], bool(BiasMitigation_info['logs']), nb_sa)
             a = opt.get_alpha()
         elif BiasMitigation_info['variant'] == "loss_obj_fair_const+":
+            _, _, _, _, _, Y_pred, _ = self.global_model.model(X, Y_, A_)
             opt = loss_obj_fair_const_OPT_PLUS(len(X), len(clients_weights[0]), len(clients_weights), X, Y, Y_pred, A, Theta, self.fed_avg_weights, BiasMitigation_info['eps'], bool(BiasMitigation_info['logs']))
             a = opt.get_alpha()
         elif BiasMitigation_info['variant'] == "wu_surrogate_risk_difference":
+            _, _, _, _, _, Y_pred, _ = self.global_model.model(X, Y_, A_)
             opt = wu_surrogate_risk_difference(len(X), len(clients_weights[0]), len(clients_weights), X, Y, Y_pred, A,  X_without_sa, Theta, y_var = BinaryVariable(name= self.validation_dataset.target_var_name, pos=1, neg=0), s_var = BinaryVariable(name =self.validation_dataset.sensitive_att, pos=1, neg=0), logs =  bool(BiasMitigation_info['logs']), kappa_name=BiasMitigation_info['kappa_name'], delta_name=BiasMitigation_info['delta_name'], phi_name=BiasMitigation_info['phi_name'])
             a = opt.get_alpha()
         elif BiasMitigation_info['variant'] == "bayesian_grid_search":
             # Explored derivative-free optimization method 
             opt = Bayesian_alpha_search(copy.deepcopy(clients_weights), self.global_model_variable,self.validation_dataset,self.fed_avg_weights,BiasMitigation_info['eps'])
             a = opt.get_alpha()
-        elif BiasMitigation_info['variant'] == "differential_evolution":
+        elif ((BiasMitigation_info['variant'] == "differential_evolution")): 
             # CURRENT ASTRAL-Hrt optimization method
             try:
                 workers = BiasMitigation_info['worker']
@@ -445,17 +469,31 @@ class Server(object):
                 recombination = BiasMitigation_info['recombination']
             except:
                 recombination = 0.7
-            opt = DE_alpha_search(copy.deepcopy(clients_weights), self.global_model_variable,self.validation_dataset,nc,BiasMitigation_info['eps'],mutation,recombination, workers,maxiter,popsize,tol)
+            opt = DE_alpha_search(metric_name, copy.deepcopy(clients_weights), self.global_model_variable,self.validation_dataset,nc,BiasMitigation_info['eps'],mutation,recombination, workers,maxiter,popsize,tol)
             a = opt.get_alpha()
             if a == 0 :
                 end=timer()
                 return (copy.deepcopy(self.global_model)), end-start
         elif BiasMitigation_info['variant'] == "differential_evolution_rwgt":
             # other explored method using differential evolution to find parameters of fedavg+rwgt (not studied)
-            opt = DE_alpha_Rwgt_search(copy.deepcopy(clients_weights), self.global_model_variable,self.validation_dataset,nc,BiasMitigation_info['eps'],clientvalid_metrics,nc)
+            opt = DE_alpha_Rwgt_search(metric_name, copy.deepcopy(clients_weights), self.global_model_variable,self.validation_dataset,nc,BiasMitigation_info['eps'],clientvalid_metrics,nc)
             a = opt.get_alpha()
             if a == 0 :
                 a=nc
+        elif ((BiasMitigation_info['variant'] == "CMA")):
+            try:
+                workers = BiasMitigation_info['worker']
+            except:
+                workers = -1
+            try:
+                maxiter = BiasMitigation_info['maxiter']
+            except:
+                maxiter = 1000
+            opt = CMAES_alpha_search(metric_name, copy.deepcopy(clients_weights), self.global_model_variable,self.validation_dataset,nc,BiasMitigation_info['eps'],workers,maxiter)
+            a = opt.get_alpha()
+            if a == 0 :
+                end=timer()
+                return (copy.deepcopy(self.global_model)), end-start
         else:
             print("Variant {} not supported by ASTRAL_OPT.".format(BiasMitigation_info.variant))
             end=timer()

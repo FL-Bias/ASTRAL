@@ -8,6 +8,7 @@ warnings.filterwarnings('ignore')
 from datasets import MyDataset
 from typing import List, Tuple
 from server_client import *
+import models
 
 class FLBase:
     FL_parameters: dict = {}
@@ -101,7 +102,7 @@ class FLBase:
             self.weights_list.append([run, round_, -1, 'global model', self.global_model.get_weights()])
             # getting global test accuracies, global test losses, global test metrics
             global_test_acc, global_test_loss, global_test_metrics = self.run_global_evaluation(run, round_, round_end_time, server_time, upstream, downstream)
-        print(f"| Run {run} ---- Test Accuracy: {100 * global_test_acc:.2f}% --- Test Loss: \ {global_test_loss:.2f} --- Metrics {global_test_metrics}")
+            print(f"| Run {run} ---- Test Accuracy: {100 * global_test_acc:.2f}% --- Test Loss: \ {global_test_loss:.2f} --- Metrics {global_test_metrics}")
 
     def run_rounds_warmup(self, run: int, *a, **kw):
         nb_rounds = self.FL_parameters["nb_rounds_warmup"]
@@ -170,7 +171,8 @@ class FLBase:
                clients_idx.append(0)
                local_weights_list.append([0 for i in range(100)])
         return local_models, loss, clients_idx
-
+    
+    
     def run_global_evaluation(self, run, round_, round_end_time, server_time, upstream, downstream):
         # getting global test accuracies, global test losses, global test metrics
         try:
@@ -184,7 +186,7 @@ class FLBase:
             print(global_valid_acc, global_valid_loss, global_valid_metrics)
         except:
             print('No validation set provided.')
-        global_test_acc, global_test_loss, global_test_metrics = self.server.test_inference()
+        global_test_acc, global_test_loss, global_test_metrics= self.server.test_inference()
         self.metrics_list.append([run, round_, -1, 'global model tested on test set', global_test_acc, global_test_loss, global_test_metrics, round_end_time, server_time, upstream, downstream])
         print('Global test')
         print(global_test_acc, global_test_loss, global_test_metrics)
@@ -203,6 +205,7 @@ class FLBase:
 #                    [run, round_, i, 'local model tested on train set', local_train_acc, local_train_loss, local_train_metrics, -1, -1, -1])
 #                clients_train_metrics.append(local_train_metrics)
             try:
+                print("getting validation data")
                 validation_data = self.server.get_validation_dataset()
                 local_valid_acc, local_valid_loss, local_valid_metrics = self.clients[i].test_inference(validation_data)
                 print(i)
@@ -218,6 +221,7 @@ class FLBase:
 #            self.metrics_list.append([run, round_, i, 'local model tested on test set', local_test_acc, local_test_loss, local_test_metrics, -1, -1, -1])
 #            clients_test_metrics.append(local_test_metrics)
         return clients_train_metrics, clients_valid_metrics, clients_test_metrics
+        
     def write_metrics_df(self, i):
         metrics_path = self.FL_parameters["metrics_collection_path"]
         columns = ['runs_id', 'round_id', 'client_id', 'info', 'accuracy', 'loss', 'metrics', 'round_train_time','server_time', 'size_upstream', 'size_downstream']
@@ -344,7 +348,7 @@ class IBW_FL(BiasMitigationBase):
         else:
             return pow(1 / p, beta) / pow(pow(1 / p, beta) + pow(1 - (1 / p), beta), 1 / beta)
 
-    def Linear_odds_log_function(sef, p, sigma, gamma):
+    def Linear_odds_log_function(self, p, sigma, gamma):
         if p <= 1:
             return sigma * pow(p, gamma) / (sigma * pow(p, gamma) + pow(1 - p, gamma))
         else :
@@ -388,6 +392,16 @@ class IBW_FL(BiasMitigationBase):
                         beta = self.BiasMitigation_info['beta']
                         agg_weight = clients_idx[i] * self.prelec_function_SPD(max([abs(ele) for ele in local_bias]), alpha, beta)
                         print('SPD {} weight {}'.format(local_bias, agg_weight))
+                    elif IBW_metric_name == 'Equal Opportunity Difference':
+                        alpha = self.BiasMitigation_info['alpha']
+                        beta = self.BiasMitigation_info['beta']
+                        agg_weight = clients_idx[i] * self.prelec_function_SPD(max([abs(ele) for ele in local_bias]), alpha, beta)
+                        print('EOD {} weight {}'.format(local_bias, agg_weight))
+                    elif IBW_metric_name == 'Discrimination Index':
+                        alpha = self.BiasMitigation_info['alpha']
+                        beta = self.BiasMitigation_info['beta']
+                        agg_weight = clients_idx[i] * self.prelec_function_SPD(max([abs(ele) for ele in local_bias]), alpha, beta)
+                        print('DI {} weight {}'.format(local_bias, agg_weight))
                 else:
                     if IBW_metric_name == 'Disparate Impact':
                         alpha = self.BiasMitigation_info['alpha']
@@ -398,6 +412,16 @@ class IBW_FL(BiasMitigationBase):
                         beta = self.BiasMitigation_info['beta']
                         agg_weight = clients_idx[i] * self.prelec_function_SPD(local_bias, alpha, beta)
                         print('SPD {} weight {}'.format(local_bias, agg_weight))
+                    elif IBW_metric_name == 'Equal Opportunity Difference':
+                        alpha = self.BiasMitigation_info['alpha']
+                        beta = self.BiasMitigation_info['beta']
+                        agg_weight = clients_idx[i] * self.prelec_function_SPD(local_bias, alpha, beta)
+                        print('EOD {} weight {}'.format(local_bias, agg_weight))
+                    elif IBW_metric_name == 'Discrimination Index':
+                        alpha = self.BiasMitigation_info['alpha']
+                        beta = self.BiasMitigation_info['beta']
+                        agg_weight = clients_idx[i] * self.prelec_function_SPD(local_bias, alpha, beta)
+                        print('DI {} weight {}'.format(local_bias, agg_weight))
                 IBW_agg_weights_list.append(agg_weight)
             print('Aggregation weights for round {} : {} '.format(round_, IBW_agg_weights_list))
             upstream = upstream + len(local_weights_list) * len(local_weights_list[0])
@@ -464,6 +488,222 @@ class IBW_FL(BiasMitigationBase):
             global_test_acc, global_test_loss, global_test_metrics = self.run_global_evaluation(run, round_, round_end_time)
             print(f"| Run {run} ---- Test Accuracy: {100 * global_test_acc:.2f}% --- Test Loss: \ {global_test_loss:.2f} --- Metrics {global_test_metrics}")
 
+class FairFed(BiasMitigationBase):
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+
+    def compute_f1_score(self, predictions_dict):
+        tp, fp, fn = 0, 0, 0
+        for key, value in predictions_dict.items():
+            pred, true = key
+            if pred == true:
+                tp += value
+            elif pred == 1 and true == 0:
+                fp += value
+            elif pred == 0 and true == 1:
+                fn += value
+        precision = tp / (tp + fp)
+        recall = tp / (tp + fn)
+        f1_score = 2 * (precision * recall) / (precision + recall)
+        return f1_score
+    
+    def DI(self, n_yz, absolute = True):
+        """
+        Given a dictionary of number of samples in different groups, compute the discrimination index.
+        |F1(Group1) - F1(Group2)|
+        """
+        f1_scores = {}
+        for key, value in n_yz.items():
+            pred, true, sensitive = key
+            if sensitive not in f1_scores:
+                f1_scores[sensitive] = {'tp': 0, 'fp': 0, 'fn': 0}
+            if pred == true == 1:
+                f1_scores[sensitive]['tp'] += value
+            elif pred == 1 and true == 0:
+                f1_scores[sensitive]['fp'] += value
+            elif pred == 0 and true == 1:
+                f1_scores[sensitive]['fn'] += value
+        for sensitive, scores in f1_scores.items():
+            tp, fp, fn = scores['tp'], scores['fp'], scores['fn']
+            
+            precision = 0
+            recall = 0
+            if(tp + fp !=0):
+                precision = tp / (tp + fp)
+            if(tp + fn!=0):
+                recall = tp / (tp + fn)
+            if (precision + recall !=0):
+                f1_score = 2 * (precision * recall) / (precision + recall)
+            else:
+                f1_score = 0
+            f1_scores[sensitive] = f1_score
+        
+        print("F1 Score priv",f1_scores[1])
+        print("F1 Score unpriv",f1_scores[0])
+        if absolute:
+            return abs(f1_scores[1] - f1_scores[0])
+        else:
+            return f1_scores[1] - f1_scores[0]
+        
+    def SPD(self, n_yz, absolute = True):
+        """
+        Given a dictionary of number of samples in different groups, compute the risk difference.
+        |P(Group1, pos) - P(Group2, pos)| = |N(Group1, pos)/N(Group1) - N(Group2, pos)/N(Group2)|
+        """
+        n_z1 = max(n_yz[(1,1)] + n_yz[(0,1)], 1)
+        n_z0 = max(n_yz[(0,0)] + n_yz[(1,0)], 1)
+        if absolute:
+            return abs(n_yz[(1,1)]/n_z1 - n_yz[(1,0)]/n_z0)
+        else:
+            return n_yz[(1,1)]/n_z1 - n_yz[(1,0)]/n_z0
+    
+    def EOD(self, n_yz, absolute = True):
+        """
+        Given a dictionary of number of samples in different groups, compute the risk difference.
+        |P(Group1, pos) - P(Group2, pos)| = |N(Group1, pos, pospred)/N(Group1) - N(Group2, pos,pospred )/N(Group2)|
+        """
+        n_z1 = max(n_yz[(1,0,1)]+ n_yz[(1,1,1)] + n_yz[(0,0,1)]+n_yz[(0,1,1)], 1)
+        n_z0 = max(n_yz[(1,0,0)]+ n_yz[(1,1,0)] + n_yz[(0,0,0)]+n_yz[(0,1,0)], 1)
+        if absolute:
+            return abs(n_yz[(1,1,1)]/n_z1 - n_yz[(1,1,0)]/n_z0)
+        else:
+            return n_yz[(1,1,1)]/n_z1 - n_yz[(1,1,0)]/n_z0
+
+    def prelec_function_DI(self, p, alpha, beta):
+        if p <= 1:
+            return np.exp(-beta * (pow(-np.log(p), alpha)))
+        else :
+            return np.exp(-beta * (pow(-np.log(1 / p), alpha)))
+
+    def prelec_function_SPD(self, local_bias, beta, n_yz):
+        return np.exp(-beta * abs(self.SPD(local_bias) - self.SPD(n_yz)))
+    
+    def prelec_function_EOD(self, local_bias, beta, n_yz):
+        return np.exp(-beta * abs(self.EOD(local_bias) - self.EOD(n_yz)))
+    
+    def prelec_function_DI(self, local_bias, beta, n_yz):
+        return np.exp(-beta * abs(self.DI(local_bias) - self.DI(n_yz))) 
+
+    def run_rounds(self, run: int, *a, **kw):
+        fairfed_metric_name = self.BiasMitigation_info['fairness_metric_name']
+        global_test_acc, global_test_loss, global_test_metrics= self.run_global_evaluation(run, -1, 0, 0,0, 0)
+        for round_ in range(self.FL_parameters["nb_rounds"]):
+            round_strt_time = time.time()
+            upstream = 0
+            downstream = 0
+            for i in range(len(self.clients)):
+                self.clients[i].set_model_weights(self.global_model.get_weights())
+                downstream = downstream + len(
+                    self.global_model.get_weights())
+            print('===================================================')
+            print('Round ' + str(round_) + ' global model')
+            print('===================================================')
+            try:
+                print(self.global_model.get_weights())
+            except:
+                print('Model non initialized')
+            IBW_agg_weights_list = []
+            # running local training on all clients
+            local_weights_list: List = []
+            _, _, clients_idx = self.run_local_training(local_weights_list, round_=round_, run=run)
+            n_yz, loss_yz, m_yz, f_z = {}, {}, {}, {}
+
+            if fairfed_metric_name == 'Statistical Parity Difference':
+                for y in [0,1]:
+                    for z in range(2):
+                        n_yz[(y,z)] = 0
+            elif fairfed_metric_name == 'Equal Opportunity Difference':
+                for y in [0,1]:
+                    for y_true in [0,1]:
+                        for z in range(2):
+                            n_yz[(y,y_true,z)] = 0
+            elif fairfed_metric_name == 'Discrimination Index':
+                for y in [0,1]:
+                    for y_true in [0,1]:
+                        for z in range(2):
+                            n_yz[(y,y_true,z)] = 0
+
+            clients_train_metrics, _, _, n_yz_c = self.run_local_evaluation_fairfed(run, round_, fairfed_metric_name)
+            for yz in n_yz:
+                for i in range(len(self.clients)):
+                    n_yz[yz] += n_yz_c[i][yz]
+            beta = self.BiasMitigation_info['beta']
+            print(clients_idx)
+            if fairfed_metric_name == 'Statistical Parity Difference':
+                print('Aprox global SPD {} distirbution {}'.format(self.SPD(n_yz), n_yz))
+            elif fairfed_metric_name == 'Equal Opportunity Difference':
+                print('Aprox global EOD {} distirbution {}'.format(self.EOD(n_yz), n_yz))
+            elif fairfed_metric_name == 'Discrimination Index':
+                print('Aprox global DI {} distirbution {}'.format(self.DI(n_yz), n_yz))
+            for i in range(len(self.clients)):
+                local_test_metrics = clients_train_metrics[i]
+                # print(local_test_metrics[IBW_metric_name])
+                local_bias = local_test_metrics[fairfed_metric_name]
+                if fairfed_metric_name == 'Statistical Parity Difference':
+                    agg_weight = self.prelec_function_SPD(n_yz_c[i], beta,n_yz)* clients_idx[i] / sum(clients_idx)
+                    # print('SPD {} weight {}'.format(local_bias, agg_weight))
+                elif fairfed_metric_name == 'Equal Opportunity Difference':
+                    agg_weight = self.prelec_function_EOD(n_yz_c[i], beta,n_yz)* clients_idx[i] / sum(clients_idx)
+                    # print('EOD {} weight {}'.format(local_bias, agg_weight))
+                elif fairfed_metric_name == 'Discrimination Index':
+                    agg_weight = (clients_idx[i] *self.prelec_function_DI(n_yz_c[i],beta,n_yz)) /sum(clients_idx)
+                    print('DI {} fairfed weight {} weight {}'.format(self.DI(n_yz_c[i]),self.prelec_function_DI(n_yz_c[i],beta,n_yz), agg_weight))
+                IBW_agg_weights_list.append(agg_weight)
+            print('Aggregation weights for round {} : {} '.format(round_, IBW_agg_weights_list))
+            upstream = upstream + len(local_weights_list) * len(local_weights_list[0])
+            self.global_model, server_time = self.server.weighted_average_weights(local_weights_list, IBW_agg_weights_list, self.FL_parameters["aggregation_method"], self.learning_info['byzantine'])
+            round_end_time = (time.time() - round_strt_time)
+            print('After aggregation')
+            print('===================================================')
+            print(self.global_model.get_weights())
+            self.weights_list.append([run, round_, -1, 'global model', self.global_model.get_weights()])
+            # getting global test accuracies, global test losses, global test metrics
+            global_test_acc, global_test_loss, global_test_metrics, n_yz_valid,n_yz_test = self.run_global_evaluation_fairfed(run, round_, round_end_time, server_time, upstream, downstream)
+            print(f"| Run {run} ---- Valid DI: \ {self.DI(n_yz_valid):.5f} --- Test DI: \ {self.DI(n_yz_test):.5f}")
+            print(f"| Run {run} ---- Test Accuracy: {100 * global_test_acc:.2f}% --- Test Loss: \ {global_test_loss:.2f} --- Metrics {global_test_metrics}")
+
+    def run_local_evaluation_fairfed(self, run, round_, fairfed_metric_name):
+            clients_train_metrics = []
+            clients_valid_metrics = []
+            clients_test_metrics = []
+            n_yz_c = []
+            for i in range(len(self.clients)):
+                if fairfed_metric_name == 'Statistical Parity Difference':
+                    local_train_acc, local_train_loss, local_train_metrics, n_yz = self.clients[i].test_inference_SPD_fairfed(self.clients[i].train_dataset)
+                elif fairfed_metric_name == 'Equal Opportunity Difference':
+                    local_train_acc, local_train_loss, local_train_metrics, n_yz = self.clients[i].test_inference_EOD_fairfed(self.clients[i].train_dataset)
+                elif fairfed_metric_name == 'Discrimination Index':
+                    local_train_acc, local_train_loss, local_train_metrics, n_yz = self.clients[i].test_inference_EOD_fairfed(self.clients[i].train_dataset)
+                
+                print(i)
+                print(local_train_acc, local_train_loss, local_train_metrics)
+                self.metrics_list.append(
+                    [run, round_, i, 'local model tested on train set', local_train_acc, local_train_loss, local_train_metrics, -1, -1, -1])
+                clients_train_metrics.append(local_train_metrics)
+                n_yz_c.append(n_yz)
+                print(n_yz)
+            return clients_train_metrics, clients_valid_metrics, clients_test_metrics, n_yz_c
+    
+    def run_global_evaluation_fairfed(self, run, round_, round_end_time, server_time, upstream, downstream):
+        # getting global test accuracies, global test losses, global test metrics
+        try:
+            global_valid_acc, global_valid_loss, global_valid_metrics,n_yz_valid = self.server.validation_fairfed()
+            self.metrics_list.append(
+                [run, round_, -1, 'global model tested on validation set', global_valid_acc,
+                 global_valid_loss,
+                 global_valid_metrics, round_end_time, server_time, upstream, downstream])
+            #print('server_time in s'+ str(server_time))
+            print('Global validation')
+            print(global_valid_acc, global_valid_loss, global_valid_metrics)
+        except:
+            print('No validation set provided.')
+        global_test_acc, global_test_loss, global_test_metrics,n_yz_test= self.server.test_inference_fairfed()
+        self.metrics_list.append([run, round_, -1, 'global model tested on test set', global_test_acc, global_test_loss, global_test_metrics, round_end_time, server_time, upstream, downstream])
+        print('Global test')
+        print(global_test_acc, global_test_loss, global_test_metrics)
+        return global_test_acc, global_test_loss, global_test_metrics,n_yz_valid,n_yz_test
+
 class ASTRAL_OPT_FL(BiasMitigationBase):
 
     def __init__(self, *a, **kw):
@@ -472,40 +712,38 @@ class ASTRAL_OPT_FL(BiasMitigationBase):
         self.variant = self.BiasMitigation_info['variant']
         self.logs = bool(self.BiasMitigation_info["logs"])
     def run_rounds(self, run: int, *a, **kw):
-        if self.metric_name == "Statistical Parity Difference" :
-            global_test_acc, global_test_loss, global_test_metrics = self.run_global_evaluation(run, -1, 0, 0, 0, 0)
-            for round_ in range(self.FL_parameters["nb_rounds"]):
-                round_strt_time = time.time()
-                upstream = 0
-                downstream = 0
-                for i in range(len(self.clients)):
-                    self.clients[i].set_model_weights(self.global_model.get_weights())
-                    downstream = downstream + len(
-                        self.global_model.get_weights())
-                print('===================================================')
-                print('Round ' + str(round_) + ' global model')
-                print('===================================================')
-                try:
-                    print(self.global_model.get_weights())
-                except:
-                    print('Model non initialized')
-                IBW_agg_weights_list = []
-                # running local training on all clients
-                local_weights_list: List = []
-                local_models, _, clients_idx = self.run_local_training(local_weights_list, round_=round_, run=run)
-                clients_train_metrics, clients_valid_metrics, clients_test_metrics = self.run_local_evaluation(run, round_)
-                upstream = upstream + len(local_weights_list) * len(local_weights_list[0])
-                self.global_model, server_time = self.server.Astral_optim_aggregation_DP(local_models, local_weights_list, clients_idx,round_, self.learning_info['byzantine'], self.BiasMitigation_info,clients_valid_metrics)
-                round_end_time = (time.time() - round_strt_time)
-                print('After aggregation')
-                print('===================================================')
+        global_test_acc, global_test_loss, global_test_metrics = self.run_global_evaluation(run, -1, 0, 0, 0, 0)
+        for round_ in range(self.FL_parameters["nb_rounds"]):
+            round_strt_time = time.time()
+            upstream = 0
+            downstream = 0
+            for i in range(len(self.clients)):
+                self.clients[i].set_model_weights(self.global_model.get_weights())
+                downstream = downstream + len(
+                    self.global_model.get_weights())
+            print('===================================================')
+            print('Round ' + str(round_) + ' global model')
+            print('===================================================')
+            try:
                 print(self.global_model.get_weights())
-                self.weights_list.append([run, round_, -1, 'global model', self.global_model.get_weights()])
-                # getting global test accuracies, global test losses, global test metrics
-                global_test_acc, global_test_loss, global_test_metrics = self.run_global_evaluation(run, round_, round_end_time, server_time, upstream, downstream)
-                print(f"| Run {run} ---- Test Accuracy: {100 * global_test_acc:.2f}% --- Test Loss: \ {global_test_loss:.2f} --- Metrics {global_test_metrics}")
-        else:
-            print("Fairness metric {} not supported.".format(self.metric_name))
+            except:
+                print('Model non initialized')
+            IBW_agg_weights_list = []
+            # running local training on all clients
+            local_weights_list: List = []
+            local_models, _, clients_idx = self.run_local_training(local_weights_list, round_=round_, run=run)
+            clients_train_metrics, clients_valid_metrics, clients_test_metrics = self.run_local_evaluation(run, round_)
+            upstream = upstream + len(local_weights_list) * len(local_weights_list[0])
+            self.global_model, server_time = self.server.Astral_optim_aggregation(self.metric_name, local_models, local_weights_list, clients_idx,round_, self.learning_info['byzantine'], self.BiasMitigation_info,clients_valid_metrics)
+            round_end_time = (time.time() - round_strt_time)
+            print('After aggregation')
+            print('===================================================')
+            print(self.global_model.get_weights())
+            self.weights_list.append([run, round_, -1, 'global model', self.global_model.get_weights()])
+            # getting global test accuracies, global test losses, global test metrics
+            global_test_acc, global_test_loss, global_test_metrics = self.run_global_evaluation(run, round_, round_end_time, server_time, upstream, downstream)
+            print(f"| Run {run} ---- Test Accuracy: {100 * global_test_acc:.2f}% --- Test Loss: \ {global_test_loss:.2f} --- Metrics {global_test_metrics}")
+
 
 def PesonalizedW_FL(FL_parameters, train_sets, validation_set, test_set, FL_model, learning_info, data_preparation_info, data_info, PersonalizedW_info, remark):
     nb_runs = FL_parameters["nb_runs"]

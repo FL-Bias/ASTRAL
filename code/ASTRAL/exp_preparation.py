@@ -8,6 +8,7 @@ from sklearn.preprocessing import StandardScaler
 import warnings
 warnings.filterwarnings('ignore')
 import models
+import numpy as np
 from models import *
 from datasets import *
 from server_client import *
@@ -92,7 +93,27 @@ def standarize_data_old(sensitive_att, target_var, data):
 
 
 def standarize_data(sensitive_att, target_var, data, name ):
-    if (name == 'DC') | (name == 'MEPS'):
+    if (name == 'OPSD') | (name == 'AI4I'):
+
+        data_SA = data.iloc[:, -2:]
+        data_SA = data_SA.iloc[:, 0:1]
+
+        data_without_SA = data.iloc[:, :-2]
+        cols = data.columns.tolist()
+
+        cols = cols[:-2]
+
+        x_0 = data_without_SA.iloc[:, :]
+        y_0 = data.iloc[:, -1]
+        sc = StandardScaler()
+
+        x_0 = sc.fit_transform(x_0)
+        data_std = pd.DataFrame(data=x_0, columns=cols, index=data.index)
+        data_std = pd.concat([data_std, data_SA], axis=1)
+        data_std[target_var] = y_0
+
+
+    elif (name == 'DC') | (name == 'MEPS'):
         data_SA = data.iloc[:, -3:]
         data_SA = data_SA.iloc[:, 0:2]
 
@@ -109,7 +130,7 @@ def standarize_data(sensitive_att, target_var, data, name ):
         data_std = pd.DataFrame(data=x_0, columns=cols, index=data.index)
         data_std = pd.concat([data_std, data_SA], axis=1)
         data_std[target_var] = y_0
-        return data_std
+
     elif (name == "Adult") | (name == 'KDD'):
         data_SA = data.iloc[:, -4:]
         data_SA = data_SA.iloc[:, 0:3]
@@ -128,10 +149,12 @@ def standarize_data(sensitive_att, target_var, data, name ):
         data_std = pd.concat([data_std, data_SA], axis=1)
         data_std[target_var] = y_0
         print(data_std.iloc[:,-6:])
-        return data_std
+
     else:
         print("Standarization not supported for the dataset.")
         return data
+    print(data_std)
+    return(data_std)
 def find_idx(ligne, index):
     for idx, e in enumerate(ligne):
         if index <= sum(ligne[0:int(idx) + 1]):

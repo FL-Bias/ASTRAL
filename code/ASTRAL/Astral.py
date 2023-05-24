@@ -39,7 +39,7 @@ if __name__ == "__main__":
             "remark": remark
         }
         if bias_mitigation_info["apply"] == 1:
-            bias_mitigation = {"PW": PW_FL, "IBW": IBW_FL, "ASTRAL_OPT": ASTRAL_OPT_FL}
+            bias_mitigation = {"PW": PW_FL, "IBW": IBW_FL,"FairFed": FairFed, "ASTRAL_OPT": ASTRAL_OPT_FL}
             bias_mitigation_name = bias_mitigation_info["bias_mitigation_name"]
             if bias_mitigation_name not in bias_mitigation.keys():
                 print(f"Bias technique {bias_mitigation_name} not supported.")

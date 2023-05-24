@@ -3,7 +3,7 @@ import pandas as pd
 import cvxpy as cp
 import cvxopt
 from gensim.matutils import hellinger
-from sklearn.metrics import classification_report, confusion_matrix, f1_score, precision_score,     recall_score
+from sklearn.metrics import classification_report, confusion_matrix, f1_score, precision_score,     recall_score, accuracy_score
 
 
 def get_fair_metrics(dataset, pred, sensitive_att, pred_is_dataset=False):
@@ -223,6 +223,19 @@ def equal_opp_diff(TPR_unpriv, TPR_priv):
     return TPR_unpriv - TPR_priv
 
 
+def discr_idx(f1_unpriv, f1_priv):
+    """
+     Gets equal opportunity difference between the unprivileged and privileged groups.
+
+    :param: TPR_unpriv: true positive rate for unprivileged group
+    :type TPR_unpriv: `float`
+    :param: TPR_priv: true positive rate for privileged group
+    :type TPR_priv: `float`
+    :return: equal opportunity difference
+    :rtype: `float`
+    """
+    return f1_unpriv - f1_priv
+
 def avg_odds(FPR_unpriv, FPR_priv, TPR_unpriv, TPR_priv):
     """
     Gets average odds between the unprivileged and privileged groups.
@@ -383,7 +396,17 @@ def get_fairness_metrics(x_test, y_test, y_test_pred, SENSITIVE_ATTRIBUTE, cols)
     fav_rate_unpriv = fav_rate(y_pred_unpriv_set)
     fav_rate_priv = fav_rate(y_pred_priv_set)
 
-    return fav_rate_unpriv, fav_rate_priv, TPR_unpriv, TPR_priv, FPR_unpriv, FPR_priv
+    f1_unpriv = f1_score(y_test_unpriv_set, y_pred_unpriv_set)
+    f1_priv = f1_score(y_test_priv_set, y_pred_priv_set)
+
+
+    accuracy_unpriv = accuracy_score(y_test_unpriv_set, y_pred_unpriv_set)
+    accuracy_priv = accuracy_score(y_test_priv_set, y_pred_priv_set)
+
+    print('accuracy old {} accuracy recent {}'.format(accuracy_unpriv, accuracy_priv))
+    print('True po old {} true po recent {}'.format(TPR_unpriv, TPR_priv))
+
+    return fav_rate_unpriv, fav_rate_priv, TPR_unpriv, TPR_priv, FPR_unpriv, FPR_priv, f1_unpriv, f1_priv
 
 def get_spd_metrics(x_test, y_test, y_test_pred, SENSITIVE_ATTRIBUTE, cols):
     """
@@ -408,6 +431,62 @@ def get_spd_metrics(x_test, y_test, y_test_pred, SENSITIVE_ATTRIBUTE, cols):
     fav_rate_priv = fav_rate(y_pred_priv_set)
 
     return fav_rate_unpriv, fav_rate_priv
+    
+def get_eod_metrics(x_test, y_test, y_test_pred, SENSITIVE_ATTRIBUTE, cols):
+    """
+    Calculates middle terms for fairness metrics.
+
+    :param x_test: Test feature set
+    :type x_test: `np.array`
+    :param y_test: Test set labels
+    :type y_test: `np.array`
+    :param y_test_pred: Test set predictions
+    :type y_test_pred: `np.array`
+    :param SENSITIVE_ATTRIBUTE:
+    :type SENSITIVE_ATTRIBUTE: `str`
+    :param cols: Feature set column namess
+    :type cols: `list`
+    :return: fairness metric variables
+    :rtype: `float`
+    """
+    y_test_priv_set, y_test_unpriv_set, y_pred_priv_set, y_pred_unpriv_set =     priv_unpriv_sets(x_test, y_test, y_test_pred, SENSITIVE_ATTRIBUTE, cols)
+
+    pos_unpriv_set = num_pos(y_test_unpriv_set)
+    pos_priv_set = num_pos(y_test_priv_set)
+
+    TP_unpriv = num_true_pos(y_test_unpriv_set, y_pred_unpriv_set)
+    TP_priv = num_true_pos(y_test_priv_set, y_pred_priv_set)
+
+    TPR_unpriv = tp_rate(TP_unpriv, pos_unpriv_set)
+    TPR_priv = tp_rate(TP_priv, pos_priv_set)
+
+
+    return TPR_unpriv, TPR_priv
+
+
+def get_discr_idx_metrics(x_test, y_test, y_test_pred, SENSITIVE_ATTRIBUTE, cols):
+    """
+    Calculates middle terms for fairness metrics.
+
+    :param x_test: Test feature set
+    :type x_test: `np.array`
+    :param y_test: Test set labels
+    :type y_test: `np.array`
+    :param y_test_pred: Test set predictions
+    :type y_test_pred: `np.array`
+    :param SENSITIVE_ATTRIBUTE:
+    :type SENSITIVE_ATTRIBUTE: `str`
+    :param cols: Feature set column namess
+    :type cols: `list`
+    :return: fairness metric variables
+    :rtype: `float`
+    """
+    y_test_priv_set, y_test_unpriv_set, y_pred_priv_set, y_pred_unpriv_set = priv_unpriv_sets(x_test, y_test, y_test_pred, SENSITIVE_ATTRIBUTE, cols)
+    f1_priv = f1_score(y_test_priv_set, y_pred_priv_set)
+    f1_unpriv = f1_score(y_test_unpriv_set, y_pred_unpriv_set)
+
+    return f1_unpriv, f1_priv
+
 
 def fairness_report(x_test, y_test, y_pred, sensitive_attribute, model_params, cols):
     """
@@ -429,17 +508,21 @@ def fairness_report(x_test, y_test, y_pred, sensitive_attribute, model_params, c
     """
     if (isinstance(sensitive_attribute,list)):
         list_fav_rate_unpriv, list_fav_rate_priv = [], []
-        spd, eod, ao, di, dbc = [], [], [], [], []
+        spd, eod, ao, di, dbc, discri_idx, list_f1_unpriv, list_f1_priv = [], [], [], [], [], [], [], []
         for sa in sensitive_attribute:
-            fav_rate_unpriv, fav_rate_priv, TPR_unpriv, TPR_priv, FPR_unpriv, FPR_priv = get_fairness_metrics(
+            fav_rate_unpriv, fav_rate_priv, TPR_unpriv, TPR_priv, FPR_unpriv, FPR_priv, f1_unpriv, f1_priv = get_fairness_metrics(
                 x_test, y_test, y_pred, sa, cols)
             list_fav_rate_unpriv.append(fav_rate_unpriv)
             list_fav_rate_priv.append(fav_rate_priv)
             
+            list_f1_unpriv.append(f1_unpriv)
+            list_f1_priv.append(f1_priv)
+
             spd.append(stat_parity_diff(fav_rate_unpriv, fav_rate_priv))
             eod.append(equal_opp_diff(TPR_unpriv, TPR_priv))
             ao.append(avg_odds(FPR_unpriv, FPR_priv, TPR_unpriv, TPR_priv))
             di.append(disparate_impact(fav_rate_unpriv, fav_rate_priv))
+            discri_idx.append(discr_idx(f1_unpriv, f1_priv))
             
             training_data = pd.DataFrame(data=x_test)
             training_data.columns = cols
@@ -447,17 +530,19 @@ def fairness_report(x_test, y_test, y_pred, sensitive_attribute, model_params, c
             dbc.append(decision_boundary_covariance(x_test, y_test, y_pred, s, model_params))
         f1 = f1_score(y_test, y_pred)
         f2 = classification_report(y_test, y_pred, output_dict=True)
-        report = {'F1_report': f1, 'Classification report': f2, 'Statistical Parity Difference': spd, 'Equal Opportunity Difference': eod, 'Average Odds Difference': ao, 'Disparate Impact': di, 'fav_rate_unpriv': list_fav_rate_unpriv, 'fav_rate_priv': list_fav_rate_priv, 'Decision Boundary Covariance': dbc}
+        report = {'F1_report': f1, 'Classification report': f2, 'Statistical Parity Difference': spd, 'Equal Opportunity Difference': eod, 'Average Odds Difference': ao, 'Disparate Impact': di, 'fav_rate_unpriv': list_fav_rate_unpriv, 'fav_rate_priv': list_fav_rate_priv, 'Decision Boundary Covariance': dbc,
+                  'F1_unpriv':list_f1_unpriv, 'F1_priv':list_f1_priv, 'Discrimination Index': discri_idx}
         return report
     else:
-        fav_rate_unpriv, fav_rate_priv, TPR_unpriv, TPR_priv, FPR_unpriv, FPR_priv = get_fairness_metrics(
+        fav_rate_unpriv, fav_rate_priv, TPR_unpriv, TPR_priv, FPR_unpriv, FPR_priv, f1_unpriv, f1_priv = get_fairness_metrics(
             x_test, y_test, y_pred, sensitive_attribute, cols)
         f1 = f1_score(y_test, y_pred)
         spd = stat_parity_diff(fav_rate_unpriv, fav_rate_priv)
         eod = equal_opp_diff(TPR_unpriv, TPR_priv)
         ao = avg_odds(FPR_unpriv, FPR_priv, TPR_unpriv, TPR_priv)
         di = disparate_impact(fav_rate_unpriv, fav_rate_priv)
-        
+        discri_idx = discr_idx(f1_unpriv, f1_priv)
+
         f2=classification_report(y_test,y_pred,output_dict=True)
         
         training_data = pd.DataFrame(data=x_test)
@@ -465,11 +550,13 @@ def fairness_report(x_test, y_test, y_pred, sensitive_attribute, model_params, c
         s = training_data[sensitive_attribute].to_numpy()
         dbc = decision_boundary_covariance( x_test, y_test, y_pred, s, model_params)
 
-        report = {'F1_report':f1, 'Classification report':f2 ,'Statistical Parity Difference': spd, 'Equal Opportunity Difference': eod, 'Average Odds Difference': ao, 'Disparate Impact': di,'fav_rate_unpriv':fav_rate_unpriv,'fav_rate_priv':fav_rate_priv, 'Decision Boundary Covariance':dbc}
+        report = {'F1_report':f1, 'Classification report':f2 ,'Statistical Parity Difference': spd, 'Equal Opportunity Difference': eod, 'Average Odds Difference': ao, 'Disparate Impact': di,'fav_rate_unpriv':fav_rate_unpriv,'fav_rate_priv':fav_rate_priv, 'Decision Boundary Covariance':dbc,
+                  'F1_unpriv':f1_unpriv, 'F1_priv':f1_priv, 'Discrimination Index': discri_idx}
+
                   
         return report
 
-def spd_report(x_test, y_test, y_pred, sensitive_attribute, model_params, cols):
+def spd_report(x_test, y_test, y_pred, sensitive_attribute, cols):
     """
     Gets fairness report, with F1 score, statistical parity difference, equal opportunity odds,
     average odds difference and disparate impact.
@@ -491,7 +578,8 @@ def spd_report(x_test, y_test, y_pred, sensitive_attribute, model_params, cols):
         list_fav_rate_unpriv, list_fav_rate_priv = [], []
         spd = []
         for sa in sensitive_attribute:
-            fav_rate_unpriv, fav_rate_priv, TPR_unpriv, TPR_priv, FPR_unpriv, FPR_priv = get_fairness_metrics(x_test, y_test, y_pred, sa, cols)
+            fav_rate_unpriv, fav_rate_priv = get_spd_metrics(
+                x_test, y_test, y_pred, sa, cols)
             list_fav_rate_unpriv.append(fav_rate_unpriv)
             list_fav_rate_priv.append(fav_rate_priv)
             spd.append(stat_parity_diff(fav_rate_unpriv, fav_rate_priv))         
@@ -501,6 +589,71 @@ def spd_report(x_test, y_test, y_pred, sensitive_attribute, model_params, cols):
             x_test, y_test, y_pred, sensitive_attribute, cols)
         spd = stat_parity_diff(fav_rate_unpriv, fav_rate_priv)
         return {'Statistical Parity Difference': spd}
+        
+def eod_report(x_test, y_test, y_pred, sensitive_attribute, cols):
+    """
+    Gets fairness report, with F1 score, statistical parity difference, equal opportunity odds,
+    average odds difference and disparate impact.
+
+    :param x_test: Test feature set
+    :type x_test: `np.array`
+    :param y_test: Test set labels
+    :type y_test: `np.array`
+    :param y_pred: Test set predictions
+    :type y__pred: `np.array`
+    :param sensitive_attribute:
+    :type sensitive_attribute: `str`
+    :param cols: Feature set column namess
+    :type cols: `list`
+    :return: report
+    :rtype: `dict`
+    """
+    
+    if (isinstance(sensitive_attribute,list)):
+        eod = []
+        for sa in sensitive_attribute:
+            TPR_unpriv, TPR_priv = get_eod_metrics(x_test, y_test, y_pred, sa, cols)
+            eod.append(equal_opp_diff(TPR_unpriv, TPR_priv))     
+        return {'Equal Opportunity Difference': eod}
+        
+    else:
+        TPR_unpriv, TPR_priv = get_eod_metrics( x_test, y_test, y_pred, sensitive_attribute, cols)
+        eod = equal_opp_diff(TPR_unpriv, TPR_priv)
+        return {'Equal Opportunity Difference': eod}
+
+
+def discr_idx_report(x_test, y_test, y_pred, sensitive_attribute, cols):
+    """
+    Gets fairness report, with F1 score, statistical parity difference, equal opportunity odds,
+    average odds difference and disparate impact.
+
+    :param x_test: Test feature set
+    :type x_test: `np.array`
+    :param y_test: Test set labels
+    :type y_test: `np.array`
+    :param y_pred: Test set predictions
+    :type y__pred: `np.array`
+    :param sensitive_attribute:
+    :type sensitive_attribute: `str`
+    :param cols: Feature set column namess
+    :type cols: `list`
+    :return: report
+    :rtype: `dict`
+    """
+    
+    if (isinstance(sensitive_attribute, list)):
+        discri = []
+        for sa in sensitive_attribute:
+            f1_unpriv, f1_priv = get_discr_idx_metrics(x_test, y_test, y_pred, sa, cols)
+
+            discri.append(discr_idx(f1_unpriv, f1_priv))
+        return {'Discrimination Index': discri}
+
+    else:
+        f1_unpriv, f1_priv = get_discr_idx_metrics(x_test, y_test, y_pred, sensitive_attribute, cols)
+        discri = discr_idx(f1_unpriv, f1_priv)
+        return {'Discrimination Index': discri}
+
 
 def uei(y_train, y_train_pred):
     """
@@ -520,3 +673,4 @@ def uei(y_train, y_train_pred):
         y_train_pred_norm = y_train_pred
 
     return hellinger(y_train_norm, y_train_pred_norm)
+

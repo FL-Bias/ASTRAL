@@ -17,11 +17,13 @@ import pickle
 from lib2to3.pytree import Leaf
 from turtle import shape
 from sklearn.metrics import roc_auc_score, classification_report
+import cma
+# import black_box as bb
 from bayes_opt import BayesianOptimization, SequentialDomainReductionTransformer
 from scipy.optimize import NonlinearConstraint, differential_evolution
 from timeit import default_timer as timer
 from Utils.attribute import *
-from Utils.classifiers import *
+#from Utils.classifiers import *
 from Utils.functions import *
 
 class HCO_LP(object): # hard-constrained optimization
@@ -499,6 +501,7 @@ class wu_surrogate_risk_difference(object):
 class DE_alpha_search(object):
     """ASTRAL-Hrt optimization method implementation using Differential Evolution"""
     def __init__(self,
+                metric_name,
                 Theta,
                 global_model_variable,
                 validation_dataset,
@@ -511,7 +514,7 @@ class DE_alpha_search(object):
                 popsize=15,
                 tol=0.01,
                 test_batch_size=64):
-                        
+        self.metric_name = metric_name
         self.Theta = Theta
         self.global_model_variable = copy.deepcopy(global_model_variable)
         self.validation_dataset = validation_dataset
@@ -530,8 +533,13 @@ class DE_alpha_search(object):
             self.constraints="multiple"
         else:
             self.constraints="single"
-
-    def compute_spd_computed_global_model(self,vars):
+        if self.metric_name == "Statistical Parity Difference":
+            self.test_bias_quick = "test_inference_quick"
+        elif self.metric_name == "Equal Opportunity Difference":
+            self.test_bias_quick = "test_inference_quick_EOD"
+        elif self.metric_name == "Discrimination Index":
+            self.test_bias_quick = "test_inference_quick_discr_idx"
+    def compute_bias_computed_global_model(self,vars):
         nc = vars
         w_avg = copy.deepcopy(self.Theta)
         n = sum(nc)
@@ -543,13 +551,12 @@ class DE_alpha_search(object):
         global_model= copy.deepcopy(self.global_model_variable)
         global_model.set_weights(w_avg)
         try:
-
-            accuracy,metrics = global_model.test_inference_quick(
-                self.validation_dataset, self.test_batch_size)
-            total_constraints_num = len(metrics["Statistical Parity Difference"])
+            #accuracy,metrics = global_model.test_inference_quick(self.validation_dataset, self.test_batch_size)
+            accuracy,metrics = getattr(global_model, self.test_bias_quick)(self.validation_dataset, self.test_batch_size)
+            total_constraints_num = len(metrics[self.metric_name])
             unrespected_constraint = total_constraints_num
             spd_not_respect=[]
-            for i in metrics["Statistical Parity Difference"]:
+            for i in metrics[self.metric_name]:
                 if abs(i) < self.threshold:
                     unrespected_constraint-=1
                 else:
@@ -558,10 +565,9 @@ class DE_alpha_search(object):
                 return -accuracy + sum(spd_not_respect)
             return -accuracy
         except Exception as e:
-            print("The error raised is: ", e)
             return np.inf
   
-    def compute_spd_computed_global_model_single_constraint(self,vars):
+    def compute_bias_computed_global_model_single_constraint(self,vars):
         nc = vars
         w_avg = copy.deepcopy(self.Theta)
         n = sum(nc)
@@ -574,21 +580,24 @@ class DE_alpha_search(object):
         global_model= copy.deepcopy(self.global_model_variable)
         global_model.set_weights(w_avg)
         try:
-            accuracy,metrics = global_model.test_inference_quick(
-                self.validation_dataset, self.test_batch_size)
-            if abs(metrics["Statistical Parity Difference"]) > self.threshold:
+            #accuracy,metrics = global_model.test_inference_quick(self.validation_dataset, self.test_batch_size)
+            accuracy, metrics = getattr(global_model, self.test_bias_quick)(self.validation_dataset,
+                                                                            self.test_batch_size)
+            if abs(metrics[self.metric_name]) > self.threshold:
 #                if self.calls == 0:
 #                    self.calls = 1
-                return -accuracy + abs(metrics["Statistical Parity Difference"])
+                return -accuracy + abs(metrics[self.metric_name])
             else :
 #                if self.calls == 0:
 #                    self.old_is_fair = True
 #                    self.calls = 1
                 return -accuracy
-        except:
+
+        except Exception as e:
+            print("The error raised is: ", e)
             return np.inf
 
-    def compute_spd_final_single(self,vars):
+    def compute_bias_final_single(self,vars):
         nc = vars
         w_avg = copy.deepcopy(self.Theta)
         n = sum(nc)     
@@ -600,13 +609,14 @@ class DE_alpha_search(object):
         global_model= copy.deepcopy(self.global_model_variable)
         global_model.set_weights(w_avg)
         try:
-            _,metrics = global_model.test_inference_quick(
-                self.validation_dataset, self.test_batch_size)
-            return [abs(metrics["Statistical Parity Difference"])]
+            #_,metrics = global_model.test_inference_quick(self.validation_dataset, self.test_batch_size)
+            _, metrics = getattr(global_model, self.test_bias_quick)(self.validation_dataset,
+                                                                            self.test_batch_size)
+            return [abs(metrics[self.metric_name])]
         except Exception as e:
             print("The error raised is: ", e)
             return np.inf
-    def compute_spd_final(self,vars):
+    def compute_bias_final(self,vars):
         nc = vars
         w_avg = copy.deepcopy(self.Theta)
         n = sum(nc)
@@ -618,9 +628,10 @@ class DE_alpha_search(object):
         global_model= copy.deepcopy(self.global_model_variable)
         global_model.set_weights(w_avg)
         try:
-            _,metrics = global_model.test_inference_quick(
-                self.validation_dataset, self.test_batch_size)
-            return [abs(metrics["Statistical Parity Difference"][i]) for i in range(len(metrics["Statistical Parity Difference"]))]
+            #_,metrics = global_model.test_inference_quick(self.validation_dataset, self.test_batch_size)
+            _, metrics = getattr(global_model, self.test_bias_quick)(self.validation_dataset,
+                                                                            self.test_batch_size)
+            return [abs(metrics[self.metric_name][i]) for i in range(len(metrics[self.metric_name]))]
         except Exception as e:
             print("The error raised is: ", e)
             return np.inf
@@ -629,24 +640,24 @@ class DE_alpha_search(object):
         r_min, r_max = -1, 1
         bounds = [[r_min, r_max] for i in range(len(self.fedavg_w))]
         if self.constraints=="multiple":
-            result = differential_evolution(self.compute_spd_computed_global_model,tol=self.tol,popsize=self.popsize,maxiter=self.maxiter,strategy='best1bin', bounds=bounds,workers=self.workers,disp=True)
+            result = differential_evolution(self.compute_bias_computed_global_model,tol=self.tol,popsize=self.popsize,maxiter=self.maxiter,strategy='best1bin', bounds=bounds,workers=self.workers,disp=True)
             print('Status : %s' % result['message'])
             print('Total Evaluations: %d' % result['nfev'])
             # evaluate solution
             solution = list(result['x'])
-            spds=self.compute_spd_final(solution)
+            spds=self.compute_bias_final(solution)
             print(spds)
             for i in spds:
                 if abs(i) > self.threshold:
                     return 0
         else :
             print("getting alpha")
-            result = differential_evolution(self.compute_spd_computed_global_model_single_constraint,tol=self.tol,popsize=self.popsize,maxiter=self.maxiter, mutation = self.mutation, recombination=self.recombination, strategy='best1bin', bounds=bounds,workers=self.workers,seed=1,disp=True)
+            result = differential_evolution(self.compute_bias_computed_global_model_single_constraint,tol=self.tol,popsize=self.popsize,maxiter=self.maxiter, mutation = self.mutation, recombination=self.recombination, strategy='best1bin', bounds=bounds,workers=self.workers,seed=1,disp=True)
             print('Status : %s' % result['message'])
             print('Total Evaluations: %d' % result['nfev'])
             # evaluate solution
             solution = list(result['x'])
-            if ((self.compute_spd_final_single(solution)[0] > self.threshold)): # & (self.old_is_fair == True)):
+            if ((self.compute_bias_final_single(solution)[0] > self.threshold)): # & (self.old_is_fair == True)):
                 return 0
         return solution
 
@@ -689,7 +700,8 @@ class DE_alpha_Rwgt_search(object):
                 return -accuracy + abs(metrics["Statistical Parity Difference"])
             else :
                 return -accuracy
-        except:
+        except Exception as e:
+            print("The error raised is: ", e)
             return np.inf
    
     def compute_rwgt_weights(self,vars):
@@ -712,7 +724,8 @@ class DE_alpha_Rwgt_search(object):
                 self.validation_dataset, self.test_batch_size)
             print(abs(metrics["Statistical Parity Difference"]))
             return abs(metrics["Statistical Parity Difference"])
-        except:
+        except Exception as e:
+            print("The error raised is: ", e)
             return np.inf
 
     def prelec_function_SPD(self, p, alpha, beta):
@@ -773,7 +786,8 @@ class Bayesian_alpha_search(object):
     def compute_constraint_computed_global_model(self,**kwargs):
         try:
             return abs(self.currmetrics["Statistical Parity Difference"])
-        except:
+        except Exception as e:
+            print("The error raised is: ", e)
             return np.inf
 
     def get_alpha(self, ):
@@ -797,3 +811,471 @@ class Bayesian_alpha_search(object):
         else:
             alpha = [optimizer.max['params']['c'+str(i)] for i in range(len(self.fedavg_w))]
             return alpha
+
+## EOD metric 
+
+class DE_alpha_search_EOD(object):
+    """ASTRAL-Hrt optimization method implementation using Differential Evolution"""
+    def __init__(self,
+                Theta,
+                global_model_variable,
+                validation_dataset,
+                fedavg_w,
+                threshold,
+                mutation = (0.5,1),
+                recombination = 0.7,
+                workers=-1,
+                maxiter=1000,
+                popsize=15,
+                tol=0.01,
+                test_batch_size=64):
+                        
+        self.Theta = Theta
+        self.global_model_variable = copy.deepcopy(global_model_variable)
+        self.validation_dataset = validation_dataset
+        self.fedavg_w = fedavg_w
+        self.threshold = threshold
+        self.old_is_fair = False
+        self.test_batch_size = test_batch_size
+        self.workers=workers
+        self.maxiter=maxiter
+        self.popsize=popsize
+        self.tol=tol
+        self.mutation = mutation
+        self.recombination = recombination
+        self.calls = 0
+        if isinstance(self.validation_dataset.sensitive_att,list):
+            self.constraints="multiple"
+        else:
+            self.constraints="single"
+
+    def compute_eod_computed_global_model(self,vars):
+        nc = vars
+        w_avg = copy.deepcopy(self.Theta)
+        n = sum(nc)
+        for i in range(len(self.Theta)):
+            for j in range(len(self.Theta[i])):
+                w_avg[i][j] = w_avg[i][j] * nc[i]
+                w_avg[i][j] = w_avg[i][j] / n
+        w_avg = np.sum(w_avg, axis=0)
+        global_model= copy.deepcopy(self.global_model_variable)
+        global_model.set_weights(w_avg)
+        try:
+
+            accuracy,metrics = global_model.test_inference_quick_EOD(
+                self.validation_dataset, self.test_batch_size)
+            total_constraints_num = len(metrics["Equal Opportunity Difference"])
+            unrespected_constraint = total_constraints_num
+            eod_not_respect=[]
+            for i in metrics["Equal Opportunity Difference"]:
+                if abs(i) < self.threshold:
+                    unrespected_constraint-=1
+                else:
+                    eod_not_respect.append(abs(i))    
+            if unrespected_constraint != 0:
+                return -accuracy + sum(eod_not_respect)
+            return -accuracy
+        except Exception as e:
+            print("The error raised is: ", e)
+            return np.inf
+  
+    def compute_eod_computed_global_model_single_constraint(self,vars):
+        nc = vars
+        w_avg = copy.deepcopy(self.Theta)
+        n = sum(nc)
+        
+        for i in range(len(self.Theta)):
+            for j in range(len(self.Theta[i])):
+                w_avg[i][j] = w_avg[i][j] * nc[i]
+                w_avg[i][j] = w_avg[i][j] / n
+        w_avg = np.sum(w_avg, axis=0)
+        global_model= copy.deepcopy(self.global_model_variable)
+        global_model.set_weights(w_avg)
+        try:
+            accuracy,metrics = global_model.test_inference_quick_EOD(
+                self.validation_dataset, self.test_batch_size)
+            if abs(metrics["Equal Opportunity Difference"]) > self.threshold:
+#                if self.calls == 0:
+#                    self.calls = 1
+                return -accuracy + abs(metrics["Equal Opportunity Difference"])
+            else :
+#                if self.calls == 0:
+#                    self.old_is_fair = True
+#                    self.calls = 1
+                return -accuracy
+
+        except Exception as e:
+            print("The error raised is: ", e)
+            return np.inf
+
+    def compute_eod_final_single(self,vars):
+        nc = vars
+        w_avg = copy.deepcopy(self.Theta)
+        n = sum(nc)     
+        for i in range(len(self.Theta)):
+            for j in range(len(self.Theta[i])):
+                w_avg[i][j] = w_avg[i][j] * nc[i]
+                w_avg[i][j] = w_avg[i][j] / n
+        w_avg = np.sum(w_avg, axis=0)
+        global_model= copy.deepcopy(self.global_model_variable)
+        global_model.set_weights(w_avg)
+        try:
+            _,metrics = global_model.test_inference_quick_EOD(
+                self.validation_dataset, self.test_batch_size)
+            return [abs(metrics["Equal Opportunity Difference"])]
+        except Exception as e:
+            print("The error raised is: ", e)
+            return np.inf
+    def compute_eod_final(self,vars):
+        nc = vars
+        w_avg = copy.deepcopy(self.Theta)
+        n = sum(nc)
+        for i in range(len(self.Theta)):
+            for j in range(len(self.Theta[i])):
+                w_avg[i][j] = w_avg[i][j] * nc[i]
+                w_avg[i][j] = w_avg[i][j] / n
+        w_avg = np.sum(w_avg, axis=0)
+        global_model= copy.deepcopy(self.global_model_variable)
+        global_model.set_weights(w_avg)
+        try:
+            _,metrics = global_model.test_inference_quick_EOD(
+                self.validation_dataset, self.test_batch_size)
+            return [abs(metrics["Equal Opportunity Difference"][i]) for i in range(len(metrics["Equal Opportunity Difference"]))]
+        except Exception as e:
+            print("The error raised is: ", e)
+            return np.inf
+
+    def get_alpha_eod(self, ):
+        r_min, r_max = -1, 1
+        bounds = [[r_min, r_max] for i in range(len(self.fedavg_w))]
+        if self.constraints=="multiple":
+            result = differential_evolution(self.compute_eod_computed_global_model,tol=self.tol,popsize=self.popsize,maxiter=self.maxiter,strategy='best1bin', bounds=bounds,workers=self.workers,disp=True)
+            print('Status : %s' % result['message'])
+            print('Total Evaluations: %d' % result['nfev'])
+            # evaluate solution
+            solution = list(result['x'])
+            eods=self.compute_eod_final(solution)
+            print(eods)
+            for i in eods:
+                if abs(i) > self.threshold:
+                    return 0
+        else :
+            print("getting alpha")
+            result = differential_evolution(self.compute_eod_computed_global_model_single_constraint,tol=self.tol,popsize=self.popsize,maxiter=self.maxiter, mutation = self.mutation, recombination=self.recombination, strategy='best1bin', bounds=bounds,workers=self.workers,seed=1,disp=True)
+            print('Status : %s' % result['message'])
+            print('Total Evaluations: %d' % result['nfev'])
+            # evaluate solution
+            solution = list(result['x'])
+            if ((self.compute_eod_final_single(solution)[0] > self.threshold)): # & (self.old_is_fair == True)):
+                return 0
+        return solution
+
+
+class CMAES_alpha_search(object):
+    """ASTRAL-Hrt optimization method implementation using CMA-ES"""
+    def __init__(self,
+                metric_name,
+                Theta,
+                global_model_variable,
+                validation_dataset,
+                fedavg_w,
+                threshold,
+                workers=-1,
+                maxiter=1000,
+                test_batch_size=64):
+                        
+        self.metric_name = metric_name
+        self.Theta = Theta
+        self.global_model_variable = copy.deepcopy(global_model_variable)
+        self.validation_dataset = validation_dataset
+        self.fedavg_w = fedavg_w
+        self.threshold = threshold
+        self.old_is_fair = False
+        self.test_batch_size = test_batch_size
+        self.workers=workers
+        self.maxiter=maxiter
+        self.calls = 0
+        if isinstance(self.validation_dataset.sensitive_att,list):
+            self.constraints="multiple"
+        else:
+            self.constraints="single"
+        if self.metric_name == "Statistical Parity Difference":
+            self.test_bias_quick = "test_inference_quick"
+        elif self.metric_name == "Equal Opportunity Difference":
+            self.test_bias_quick = "test_inference_quick_EOD"
+        elif self.metric_name == "Discrimination Index":
+            self.test_bias_quick = "test_inference_quick_discr_idx"
+
+    def compute_spd_computed_global_model(self,vars):
+        nc = vars
+        w_avg = copy.deepcopy(self.Theta)
+        n = sum(nc)
+        for i in range(len(self.Theta)):
+            for j in range(len(self.Theta[i])):
+                w_avg[i][j] = w_avg[i][j] * nc[i]
+                w_avg[i][j] = w_avg[i][j] / n
+        w_avg = np.sum(w_avg, axis=0)
+        global_model= copy.deepcopy(self.global_model_variable)
+        global_model.set_weights(w_avg)
+        try:
+
+            accuracy, metrics = getattr(global_model, self.test_bias_quick)(self.validation_dataset,
+                                                                            self.test_batch_size)
+            total_constraints_num = len(metrics[self.metric_name])
+            unrespected_constraint = total_constraints_num
+            spd_not_respect=[]
+            for i in metrics[self.metric_name]:
+                if abs(i) < self.threshold:
+                    unrespected_constraint-=1
+                else:
+                    spd_not_respect.append(abs(i))    
+            if unrespected_constraint != 0:
+                return -accuracy + 100*sum([(s- self.threshold)**2 for s in spd_not_respect])
+            return -accuracy
+        except Exception as e:
+            print("The error raised is: ", e)
+            return np.inf
+  
+    def compute_spd_computed_global_model_single_constraint(self,vars):
+        nc = vars
+        w_avg = copy.deepcopy(self.Theta)
+        n = sum(nc)
+        
+        for i in range(len(self.Theta)):
+            for j in range(len(self.Theta[i])):
+                w_avg[i][j] = w_avg[i][j] * nc[i]
+                w_avg[i][j] = w_avg[i][j] / n
+        w_avg = np.sum(w_avg, axis=0)
+        global_model= copy.deepcopy(self.global_model_variable)
+        global_model.set_weights(w_avg)
+        try:
+            accuracy, metrics = getattr(global_model, self.test_bias_quick)(self.validation_dataset,
+                                                                            self.test_batch_size)
+            if abs(metrics[self.metric_name]) > self.threshold:
+#                if self.calls == 0:
+#                    self.calls = 1
+                return -accuracy + abs(metrics[self.metric_name])
+            else :
+#                if self.calls == 0:
+#                    self.old_is_fair = True
+#                    self.calls = 1
+                return -accuracy
+        except:
+            return np.inf
+
+    def compute_spd_final_single(self,vars):
+        nc = vars
+        w_avg = copy.deepcopy(self.Theta)
+        n = sum(nc)     
+        for i in range(len(self.Theta)):
+            for j in range(len(self.Theta[i])):
+                w_avg[i][j] = w_avg[i][j] * nc[i]
+                w_avg[i][j] = w_avg[i][j] / n
+        w_avg = np.sum(w_avg, axis=0)
+        global_model= copy.deepcopy(self.global_model_variable)
+        global_model.set_weights(w_avg)
+        try:
+            _, metrics = getattr(global_model, self.test_bias_quick)(self.validation_dataset,
+                                                                            self.test_batch_size)
+            return [abs(metrics[self.metric_name])]
+        except Exception as e:
+            print("The error raised is: ", e)
+            return np.inf
+    def compute_spd_final(self,vars):
+        nc = vars
+        w_avg = copy.deepcopy(self.Theta)
+        n = sum(nc)
+        for i in range(len(self.Theta)):
+            for j in range(len(self.Theta[i])):
+                w_avg[i][j] = w_avg[i][j] * nc[i]
+                w_avg[i][j] = w_avg[i][j] / n
+        w_avg = np.sum(w_avg, axis=0)
+        global_model= copy.deepcopy(self.global_model_variable)
+        global_model.set_weights(w_avg)
+        try:
+            _, metrics = getattr(global_model, self.test_bias_quick)(self.validation_dataset,
+                                                                            self.test_batch_size)
+            return [abs(metrics[self.metric_name][i]) for i in range(len(metrics[self.metric_name]))]
+        except Exception as e:
+            print("The error raised is: ", e)
+            return np.inf
+
+    def get_alpha(self, ):
+        r_min, r_max = -1, 1
+        bounds = [[r_min]*100, [r_max]*100]
+        if self.constraints=="multiple":
+            with cma.fitness_transformations.EvalParallel2(self.compute_spd_computed_global_model, 8) as eval_para:
+                xopt, es = cma.fmin2(self.compute_spd_computed_global_model, [x / sum(self.fedavg_w) for x in self.fedavg_w] , 0.01,parallel_objective=eval_para)            # evaluate solution
+            solution = list(xopt)
+            # # evaluate solution
+            # solution = list(xopt)
+            # spds=self.compute_spd_final(solution)
+            # print(spds)
+            # for i in spds:
+            #     if abs(i) > self.threshold:
+            #         return 0
+        else :
+            print("getting alpha")
+            # es = cma.CMAEvolutionStrategy([x / sum(self.fedavg_w) for x in self.fedavg_w] , 1)
+            with cma.fitness_transformations.EvalParallel2(self.compute_spd_computed_global_model_single_constraint, 8) as eval_para:
+                xopt, es = cma.fmin2(self.compute_spd_computed_global_model_single_constraint, [x / sum(self.fedavg_w) for x in self.fedavg_w] , 1,restarts=1, restart_from_best='True', options={'AdaptSigma': cma.sigma_adaptation.CMAAdaptSigmaCSA,'maxfevals': 1e3},bipop=True,parallel_objective=eval_para)            # evaluate solution
+            solution = list(xopt)
+            # if ((self.compute_spd_final_single(solution)[0] > self.threshold)): # & (self.old_is_fair == True)):
+            #     return 0
+        return solution
+    
+# class BB_alpha_search(object):
+#     """ASTRAL-Hrt optimization method implementation using RBF BB algorithm"""
+#     def __init__(self,
+#                 Theta,
+#                 global_model_variable,
+#                 validation_dataset,
+#                 fedavg_w,
+#                 threshold,
+#                 mutation = (0.5,1),
+#                 recombination = 0.7,
+#                 workers=-1,
+#                 maxiter=1000,
+#                 popsize=15,
+#                 tol=0.01,
+#                 test_batch_size=64):
+                        
+#         self.Theta = Theta
+#         self.global_model_variable = copy.deepcopy(global_model_variable)
+#         self.validation_dataset = validation_dataset
+#         self.fedavg_w = fedavg_w
+#         self.threshold = threshold
+#         self.old_is_fair = False
+#         self.test_batch_size = test_batch_size
+#         self.workers=workers
+#         self.maxiter=maxiter
+#         self.popsize=popsize
+#         self.tol=tol
+#         self.mutation = mutation
+#         self.recombination = recombination
+#         self.calls = 0
+#         if isinstance(self.validation_dataset.sensitive_att,list):
+#             self.constraints="multiple"
+#         else:
+#             self.constraints="single"
+
+#     def compute_spd_computed_global_model(self,vars):
+#         nc = vars
+#         w_avg = copy.deepcopy(self.Theta)
+#         n = sum(nc)
+#         for i in range(len(self.Theta)):
+#             for j in range(len(self.Theta[i])):
+#                 w_avg[i][j] = w_avg[i][j] * nc[i]
+#                 w_avg[i][j] = w_avg[i][j] / n
+#         w_avg = np.sum(w_avg, axis=0)
+#         global_model= copy.deepcopy(self.global_model_variable)
+#         global_model.set_weights(w_avg)
+#         try:
+
+#             accuracy,metrics = global_model.test_inference_quick(
+#                 self.validation_dataset, self.test_batch_size)
+#             total_constraints_num = len(metrics["Statistical Parity Difference"])
+#             unrespected_constraint = total_constraints_num
+#             spd_not_respect=[]
+#             for i in metrics["Statistical Parity Difference"]:
+#                 if abs(i) < self.threshold:
+#                     unrespected_constraint-=1
+#                 else:
+#                     spd_not_respect.append(abs(i))    
+#             if unrespected_constraint != 0:
+#                 return -accuracy + 100*sum([(s- self.threshold)**2 for s in spd_not_respect])
+#             return -accuracy
+#         except Exception as e:
+#             print("The error raised is: ", e)
+#             return np.inf
+  
+#     def compute_spd_computed_global_model_single_constraint(self,vars):
+#         nc = vars
+#         w_avg = copy.deepcopy(self.Theta)
+#         n = sum(nc)
+        
+#         for i in range(len(self.Theta)):
+#             for j in range(len(self.Theta[i])):
+#                 w_avg[i][j] = w_avg[i][j] * nc[i]
+#                 w_avg[i][j] = w_avg[i][j] / n
+#         w_avg = np.sum(w_avg, axis=0)
+#         global_model= copy.deepcopy(self.global_model_variable)
+#         global_model.set_weights(w_avg)
+#         try:
+#             accuracy,metrics = global_model.test_inference_quick(
+#                 self.validation_dataset, self.test_batch_size)
+#             if abs(metrics["Statistical Parity Difference"]) > self.threshold:
+# #                if self.calls == 0:
+# #                    self.calls = 1
+#                 return -accuracy + (100*abs(metrics["Statistical Parity Difference"]) - 100*self.threshold)**2
+#             else :
+# #                if self.calls == 0:
+# #                    self.old_is_fair = True
+# #                    self.calls = 1
+#                 return -accuracy
+#         except:
+#             return np.inf
+
+#     def compute_spd_final_single(self,vars):
+#         nc = vars
+#         w_avg = copy.deepcopy(self.Theta)
+#         n = sum(nc)     
+#         for i in range(len(self.Theta)):
+#             for j in range(len(self.Theta[i])):
+#                 w_avg[i][j] = w_avg[i][j] * nc[i]
+#                 w_avg[i][j] = w_avg[i][j] / n
+#         w_avg = np.sum(w_avg, axis=0)
+#         global_model= copy.deepcopy(self.global_model_variable)
+#         global_model.set_weights(w_avg)
+#         try:
+#             _,metrics = global_model.test_inference_quick(
+#                 self.validation_dataset, self.test_batch_size)
+#             return [abs(metrics["Statistical Parity Difference"])]
+#         except Exception as e:
+#             print("The error raised is: ", e)
+#             return np.inf
+#     def compute_spd_final(self,vars):
+#         nc = vars
+#         w_avg = copy.deepcopy(self.Theta)
+#         n = sum(nc)
+#         for i in range(len(self.Theta)):
+#             for j in range(len(self.Theta[i])):
+#                 w_avg[i][j] = w_avg[i][j] * nc[i]
+#                 w_avg[i][j] = w_avg[i][j] / n
+#         w_avg = np.sum(w_avg, axis=0)
+#         global_model= copy.deepcopy(self.global_model_variable)
+#         global_model.set_weights(w_avg)
+#         try:
+#             _,metrics = global_model.test_inference_quick(
+#                 self.validation_dataset, self.test_batch_size)
+#             return [abs(metrics["Statistical Parity Difference"][i]) for i in range(len(metrics["Statistical Parity Difference"]))]
+#         except Exception as e:
+#             print("The error raised is: ", e)
+#             return np.inf
+
+#     def get_alpha(self, ):
+#         r_min, r_max = -1, 1
+#         bounds = [[r_min, r_max] for i in range(len(self.fedavg_w))]
+#         if self.constraints=="multiple":
+#             with cma.fitness_transformations.EvalParallel2(self.compute_spd_computed_global_model, 8) as eval_para:
+#                 xopt, es = cma.fmin2(self.compute_spd_computed_global_model, [x / sum(self.fedavg_w) for x in self.fedavg_w] , 0.01,parallel_objective=eval_para)            # evaluate solution
+#             solution = list(xopt)
+#             # # evaluate solution
+#             # solution = list(xopt)
+#             # spds=self.compute_spd_final(solution)
+#             # print(spds)
+#             # for i in spds:
+#             #     if abs(i) > self.threshold:
+#             #         return 0
+#         else :
+#             print("getting alpha")
+#             # es = cma.CMAEvolutionStrategy([x / sum(self.fedavg_w) for x in self.fedavg_w] , 1)
+#             solution = bb.search_min(f = self.compute_spd_computed_global_model_single_constraint,  # given function
+#                             domain = bounds,
+#                             budget = 100,  # total number of function calls available
+#                             batch = 4,  # number of calls that will be evaluated in parallel
+#                             resfile = 'output.csv') 
+#             solution = list(solution)
+#             # if ((self.compute_spd_final_single(solution)[0] > self.threshold)): # & (self.old_is_fair == True)):
+#             #     return 0
+#         return solution
