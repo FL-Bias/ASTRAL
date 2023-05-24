@@ -45,7 +45,7 @@
   "bias_mitigation_info":{
       "bias_mitigation_name":"ASTRAL_OPT",
       "variant": "differential_evolution", 
-      "fairness_metric_name": "Discrimination Index",
+      "fairness_metric_name": "Statistical Parity Difference",
       "eps":0.03,
       "logs":1,
       "maxiter":20,

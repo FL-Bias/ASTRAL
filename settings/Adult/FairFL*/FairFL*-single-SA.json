@@ -6,7 +6,7 @@
       "ratio_of_participating_clients":1,
       "participants_selection_method":"random",
       "aggregation_method":"fed_avg",
-      "metrics_collection_path":"../../astral-experiments/Adult_experiments/Fed-Avg-Ign/Metrics/age",
+      "metrics_collection_path":"./metrics",
       "warmup":0
    },
    "fl_data_preparation_info":{

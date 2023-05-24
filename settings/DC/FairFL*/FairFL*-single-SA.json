@@ -6,7 +6,7 @@
       "ratio_of_participating_clients":1,
       "participants_selection_method":"random",
       "aggregation_method":"fed_avg",
-      "metrics_collection_path":"astral-settings/Dutch-10-FL-Clients/gender/a-002/FedAvg+Ign",
+      "metrics_collection_path":"./metrics",
       "warmup":1
    },
    "fl_data_preparation_info":{

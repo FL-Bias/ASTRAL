@@ -6,7 +6,7 @@
       "ratio_of_participating_clients":1,
       "participants_selection_method":"random",
       "aggregation_method":"fed_avg",
-      "metrics_collection_path":"./astral-experiments/ARS/test/FairFL*/Metrics",
+      "metrics_collection_path":"./metrics",
       "warmup":1
    },
    "fl_data_preparation_info":{
@@ -44,7 +44,7 @@
    },
    "bias_mitigation_info":{
       "bias_mitigation_name":"PW",
-      "fairness_metric_name":"Discrimination Index",
+      "fairness_metric_name":"Statistical Parity Difference",
       "e_min":-0.03,
       "e_max":0.03,
       "dynamic": 0

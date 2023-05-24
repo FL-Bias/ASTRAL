@@ -6,7 +6,7 @@
       "ratio_of_participating_clients":1,
       "participants_selection_method":"random",
       "aggregation_method":"fed_avg",
-      "metrics_collection_path":"./astral-experiments/ARS/test/FairFed*/Metrics",
+      "metrics_collection_path":"./metrics",
       "warmup":1
    },
    "fl_data_preparation_info":{
@@ -44,9 +44,9 @@
    },
    "bias_mitigation_info":{
       "bias_mitigation_name": "IBW", 
-      "fairness_metric_name": "Discrimination Index",
-      "alpha": 0.7, 
-      "beta": 1
+      "fairness_metric_name": "Statistical Parity Difference",
+      "alpha": 0.2, 
+      "beta": 50
    },
    "remark":"FairFed* on ARS"
 }
