@@ -1,0 +1,1 @@
+The json files in this directory contain experiments done considering the Statistical parity Difference (SPD) metric. To run experiments considering Equal Opportunity Difference or Discrimnation Index, one should only change the name of the metric in the field "fairness_metric_name" of the json files to: "Equal Opportunity Difference" or "Discrimination Index", respectively.
