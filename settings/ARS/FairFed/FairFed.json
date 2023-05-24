@@ -1,0 +1,52 @@
+{
+   "fl_parameters":{
+      "nb_runs":1,
+      "nb_rounds":250,
+      "nb_clients":10,
+      "ratio_of_participating_clients":1,
+      "participants_selection_method":"random",
+      "aggregation_method":"fed_avg",
+      "metrics_collection_path":"./astral-experiments/ARS/test/FairFed/Metrics",
+      "warmup":1
+   },
+   "fl_data_preparation_info":{
+      "initial_data_preparation":0,
+      "save_generated_datasets":0
+   },
+   "learning_info":{
+      "model_name":"Support Vector Machines",
+      "model_class":"BinarySVMPytorch",
+      "nb_inputs":10,
+      "nb_outputs":1,
+      "nb_epochs":1,
+      "batch_size":1024,
+      "learning_rate":0.001,
+      "learning_rate_type":"dynamic",
+      "learning_rate_frequency":10,
+      "learning_rate_fraction":2,
+      "learning_rate_min":1e-07,
+      "weight_decay":0.05,
+      "optimizer_class":"SGD",
+      "loss_class":"BCEWithLogitsLoss",
+      "warmup_parameters_path":"./datasets/ARS/initial_model",
+      "byzantine":0
+   },
+   "data_info":{
+      "name":"ARS",
+      "sensitive_att_name":"gender",
+      "target_var_name":"activity",
+      "nb_classes":2,
+      "nb_features":10,
+      "validation_set_path":"./datasets/ARS/valid.csv",
+      "test_set_path":"./datasets/ARS/test.csv",
+      "standardization":1,
+      "clients_train_sets_path":"./datasets/ARS/train"
+   },
+"bias_mitigation_info":{
+      "bias_mitigation_name": "FairFed",
+      "fairness_metric_name": "Discrimination Index",
+      "alpha": 2,
+      "beta": 1
+   },
+   "remark":"FairFed on ARS"
+}
