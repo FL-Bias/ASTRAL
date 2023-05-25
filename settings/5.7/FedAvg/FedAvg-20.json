@@ -40,17 +40,7 @@
       "validation_set_path":"./datasets/KDD/valid.csv",
       "test_set_path":"./datasets/KDD/test.csv",
       "standardization":1,
-      "clients_train_sets_path":"./datasets/KDD/KDD-data-scalability/KDD-10"
+      "clients_train_sets_path":"./datasets/KDD/KDD-data-scalability/KDD-20"
    },
-  "bias_mitigation_info":{
-      "bias_mitigation_name":"ASTRAL_OPT",
-      "variant": "differential_evolution", 
-      "fairness_metric_name": "Statistical Parity Difference",
-      "eps":0.03,
-      "logs":1,
-      "maxiter":5,
-      "popsize":20
-   },
-
    "remark":"FedAvg on KDD with 5 FL clients"
 }

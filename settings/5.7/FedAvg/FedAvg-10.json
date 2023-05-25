@@ -40,7 +40,7 @@
       "validation_set_path":"./datasets/KDD/valid.csv",
       "test_set_path":"./datasets/KDD/test.csv",
       "standardization":1,
-      "clients_train_sets_path":"./datasets/KDD-data-scalability/KDD-10"
+      "clients_train_sets_path":"./datasets/KDD/KDD-data-scalability/KDD-10"
    },
    "remark":"FedAvg on KDD with 5 FL clients"
 }

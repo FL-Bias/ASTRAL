@@ -40,7 +40,7 @@
       "validation_set_path":"./datasets/KDD/valid.csv",
       "test_set_path":"./datasets/KDD/test.csv",
       "standardization":1,
-      "clients_train_sets_path":"./datasets/KDD-data-scalability/KDD-40"
+      "clients_train_sets_path":"./datasets/KDD/KDD-data-scalability/KDD-40"
    },
   "bias_mitigation_info":{
       "bias_mitigation_name":"ASTRAL_OPT",
