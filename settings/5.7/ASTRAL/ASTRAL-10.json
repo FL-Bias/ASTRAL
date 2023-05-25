@@ -11,7 +11,7 @@
    },
    "fl_data_preparation_info":{
       "initial_data_preparation":0,
-      "save_generated_datasets":0
+      "save_generat./datasets":0
    },
    "learning_info":{
       "model_name":"Logistic regression",
@@ -40,7 +40,7 @@
       "validation_set_path":"./datasets/KDD/valid.csv",
       "test_set_path":"./datasets/KDD/test.csv",
       "standardization":1,
-      "clients_train_sets_path":"./datasets/KDD/KDD-10"
+      "clients_train_sets_path":"./datasets/KDD-data-scalability/KDD-10"
    },
   "bias_mitigation_info":{
       "bias_mitigation_name":"ASTRAL_OPT",

@@ -11,7 +11,7 @@
    },
    "fl_data_preparation_info":{
       "initial_data_preparation":0,
-      "save_generated_datasets":0
+      "save_generat./datasets":0
    },
    "learning_info":{
       "model_name":"Logistic regression",
@@ -40,16 +40,7 @@
       "validation_set_path":"./datasets/KDD/valid.csv",
       "test_set_path":"./datasets/KDD/test.csv",
       "standardization":1,
-      "clients_train_sets_path":"./datasets/KDD/KDD-40"
-   },
-  "bias_mitigation_info":{
-      "bias_mitigation_name":"ASTRAL_OPT",
-      "variant": "differential_evolution", 
-      "fairness_metric_name": "Statistical Parity Difference",
-      "eps":0.03,
-      "logs":1,
-      "maxiter":5,
-      "popsize":20
+      "clients_train_sets_path":"./datasets/KDD-data-scalability/KDD-50"
    },
 
    "remark":"FedAvg on KDD with 5 FL clients"
