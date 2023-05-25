@@ -57,6 +57,7 @@ parser.add_argument('--disparity_type', type= str, default= "DP",  help="uniform
 parser.add_argument('--baseline_type', type= str, default= "none",  help="fedave_fair, individual_fair")
 parser.add_argument('--weight_fair', type= float, default= 1.0,  help="weight for disparity")
 parser.add_argument('--aggregation_method', type= str, default= 'fed_avg',  help="[fed_avg, NDC_, multi_krum_]")
+parser.add_argument('--model_name', type= str, default= 'LR', help="[LR, SVM]")
 parser.add_argument('--traces', type= str, default= 'both',  help="Both for both validation and test, test for test traces, valid for validation traces")
 args = parser.parse_args()
 args.eps = [args.eps_g, args.eps_delta_l, args.eps_delta_g]

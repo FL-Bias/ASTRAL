@@ -388,7 +388,7 @@ def get_fairness_metrics(x_test, y_test, y_test_pred, SENSITIVE_ATTRIBUTE):
 
     return fav_rate_unpriv, fav_rate_priv, TPR_unpriv, TPR_priv, FPR_unpriv, FPR_priv
 
-def fairness_report(x_test, y_test, y_pred, model_params, sensitive_attr):
+def fairness_report(x_test, y_test, y_pred, model_params, sensitive_attr, metric = 'DP'):
     """
     Gets fairness report, with F1 score, statistical parity difference, equal opportunity odds,
     average odds difference and disparate impact.
@@ -441,13 +441,17 @@ def fairness_report(x_test, y_test, y_pred, model_params, sensitive_attr):
 
     fav_rate_unpriv, fav_rate_priv, TPR_unpriv, TPR_priv, FPR_unpriv, FPR_priv = get_fairness_metrics(x_test, y_test, y_pred, sensitive_indice)
 
-    spd = stat_parity_diff(fav_rate_unpriv, fav_rate_priv)
-    di = disparate_impact(fav_rate_unpriv, fav_rate_priv)
-    report = {'Statistical Parity Difference': spd, 'Disparate Impact': di, 'fav_rate_unpriv': fav_rate_unpriv,'fav_rate_priv': fav_rate_priv}
+    if metric == 'DP':
+        spd = stat_parity_diff(fav_rate_unpriv, fav_rate_priv)
+        di = disparate_impact(fav_rate_unpriv, fav_rate_priv)
+        report = {'Statistical Parity Difference': spd, 'Disparate Impact': di, 'fav_rate_unpriv': fav_rate_unpriv,'fav_rate_priv': fav_rate_priv}
+    elif metric == 'Eoppo':
+        eod = equal_opp_diff(TPR_unpriv, TPR_priv)
+        report = {'Equal Opportunity Difference': eod,  'TPR_unpriv': TPR_unpriv,'TPR_priv': TPR_priv}
 
     return report
 
-def fairness_report_indice(x_test, y_test, y_pred, model_params, sensitive_indice):
+def fairness_report_indice(x_test, y_test, y_pred, model_params, sensitive_indice, metric = 'DP'):
     """
     Gets fairness report, with F1 score, statistical parity difference, equal opportunity odds,
     average odds difference and disparate impact.
@@ -467,11 +471,13 @@ def fairness_report_indice(x_test, y_test, y_pred, model_params, sensitive_indic
     """
 
     fav_rate_unpriv, fav_rate_priv, TPR_unpriv, TPR_priv, FPR_unpriv, FPR_priv = get_fairness_metrics(x_test, y_test, y_pred, sensitive_indice)
-
-    spd = stat_parity_diff(fav_rate_unpriv, fav_rate_priv)
-    di = disparate_impact(fav_rate_unpriv, fav_rate_priv)
-    report = {'Statistical Parity Difference': spd, 'Disparate Impact': di, 'fav_rate_unpriv': fav_rate_unpriv,'fav_rate_priv': fav_rate_priv}
-
+    if metric == 'DP':
+        spd = stat_parity_diff(fav_rate_unpriv, fav_rate_priv)
+        di = disparate_impact(fav_rate_unpriv, fav_rate_priv)
+        report = {'Statistical Parity Difference': spd, 'Disparate Impact': di, 'fav_rate_unpriv': fav_rate_unpriv,'fav_rate_priv': fav_rate_priv}
+    elif metric == 'Eoppo':
+        eod = equal_opp_diff(TPR_unpriv, TPR_priv)
+        report = {'Equal Opportunity Difference': eod,  'TPR_unpriv': TPR_unpriv,'TPR_priv': TPR_priv}
     return report
 
 

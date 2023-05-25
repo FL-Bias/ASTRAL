@@ -56,6 +56,15 @@ def LoadDataset(args):
             X = np.concatenate([X, X1], axis=1)
             Y = np.array(train_data[client]["y"]).astype(np.float32)
 
+        elif (name == 'ARS'):
+            sc = StandardScaler()
+            X = np.array(train_data[client]["x"]).astype(np.float32)[:, :-1]
+            X1 = np.array(train_data[client]["x"]).astype(np.float32)[:, -1:]
+            #X1 = np.expand_dims(X1, axis=0)
+
+            X = sc.fit_transform(X)
+            X = np.concatenate([X, X1], axis=1)
+            Y = np.array(train_data[client]["y"]).astype(np.float32)
         else:
             X = np.array(train_data[client]["x"]).astype(np.float32)
 
@@ -139,6 +148,17 @@ def LoadDataset(args):
             X = np.concatenate([X, X1], axis=1)
             Y = np.array(test_data[client]["y"]).astype(np.float32)
 
+        elif (name =='ARS'):
+            sc = StandardScaler()
+            X = np.array(test_data[client]["x"]).astype(np.float32)[:, :-1]
+            X1 = np.array(test_data[client]["x"]).astype(np.float32)[:, -1:]
+            #X1 = np.expand_dims(X1, axis=0)
+
+            X = sc.fit_transform(X)
+            X = np.concatenate([X, X1], axis=1)
+            Y = np.array(test_data[client]["y"]).astype(np.float32)
+
+
         else:
             X = np.array(test_data[client]["x"]).astype(np.float32)
 
@@ -218,6 +238,18 @@ def LoadDataset(args):
             sc = StandardScaler()
             X = np.array(validation_data[client]["x"]).astype(np.float32)[:, :-3]
             X1 = np.array(validation_data[client]["x"]).astype(np.float32)[:, -3:]
+            #X1 = np.expand_dims(X1, axis=0)
+
+            X = sc.fit_transform(X)
+            X = np.concatenate([X, X1], axis=1)
+
+            Y = np.array(validation_data[client]["y"]).astype(np.float32)
+
+        
+        elif (name == 'ARS'):
+            sc = StandardScaler()
+            X = np.array(validation_data[client]["x"]).astype(np.float32)[:, :-1]
+            X1 = np.array(validation_data[client]["x"]).astype(np.float32)[:, -1:]
             #X1 = np.expand_dims(X1, axis=0)
 
             X = sc.fit_transform(X)

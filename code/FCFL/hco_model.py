@@ -33,9 +33,9 @@ class RegressionTrain(torch.nn.Module):
         self.warmup = warmup
         
         #* warmup
-        if warmup == "Adult-":
+        if warmup == "Adult_":
             #with open('../../astral-experiments/warmup_models_ASTRAL/logisticPytorch_Adult', "rb") as f:  # Unpickling
-            with open('./datasets/Adult/initial_model', "rb") as f:  # Unpickling
+            with open('../../astral-experiments/warmup_models_ASTRAL/LogisticPytorch_Adult_sex_race_age_new_privileged', "rb") as f:  # Unpickling
                 weights = pickle.load(f)
             dict={'layers.0.weight': torch.tensor([weights[:-1]]), 'layers.0.bias': torch.tensor([weights[-1]]) }
             model.load_state_dict(dict, strict=True)
@@ -47,30 +47,40 @@ class RegressionTrain(torch.nn.Module):
             model.load_state_dict(dict, strict=True)
         if warmup == "KDD":
             #with open('../../astral-experiments/warmup_models_ASTRAL/LogisticPytorch_Adult_race_new_privileged', "rb") as f:  # Unpickling
-            with open('./datasets/KDD/initial_model', "rb") as f:  # Unpickling
+            with open('../../astral-datasets/Configurations/logisticPytorch_KDD_age_gender_race', "rb") as f:  # Unpickling
                 weights = pickle.load(f)
             dict={'layers.0.weight': torch.tensor([weights[:-1]]), 'layers.0.bias': torch.tensor([weights[-1]]) }
             model.load_state_dict(dict, strict=True)
         elif warmup == "MEPS":
             #with open('../../astral-experiments/warmup_models_ASTRAL/logisticPytorch_MEPS_fcfl', "rb") as f:  # Unpickling
-            with open('./datasets/MEPS/initial_model', "rb") as f:  # Unpickling
+            with open('../../astral-experiments/warmup_models_ASTRAL/LogisticPytorch_MEPS_sex_race_privileged', "rb") as f:  # Unpickling
                 weights = pickle.load(f)
             dict={'layers.0.weight': torch.tensor([weights[:-1]]), 'layers.0.bias': torch.tensor([weights[-1]]) }
             model.load_state_dict(dict, strict=True)
         elif warmup == "Dutch":
-            with open('./datasets/DC/initial_model',"rb") as f:  # Unpickling
+            with open('../../astral-experiments/warmup_models_ASTRAL/LogisticPytorch_Dutch_sex_standard2attr',
+                      "rb") as f:  # Unpickling
                 weights = pickle.load(f)
             dict = {'layers.0.weight': torch.tensor([weights[:-1]]), 'layers.0.bias': torch.tensor([weights[-1]])}
             model.load_state_dict(dict, strict=True)
+        elif warmup == "ARS":
+            with open('../../astral-datasets/Old_People_Sensor_Data/Datasets_Healthy_Older_People/test/opsd_svm',
+                      "rb") as f:  # Unpickling
+                weights = pickle.load(f)
+            dict = {'layers.0.weight': torch.tensor([weights[:-1]]), 'layers.0.bias': torch.tensor([weights[-1]])}
+            model.load_state_dict(dict, strict=True)
+
         else:
             pass
 
     def forward(self, x, y, A):
+        print('hey')
         ys_pre = self.model(x).flatten()
         ys = torch.sigmoid(ys_pre)
         hat_ys1 = F.relu(ys - 0.5) / torch.max(torch.tensor(0.00001).cuda(),(ys - 0.5))
         hat_ys = (ys >=0.5).float()
         task_loss = self.loss(ys, y)
+        print(task_loss)
         accs = torch.mean((hat_ys == y).float()).item()
         aucs = roc_auc_score(y.cpu(), ys.clone().detach().cpu())
         if True:
@@ -90,12 +100,137 @@ class RegressionTrain(torch.nn.Module):
                     disparitys = torch.sum(hat_ys * A)/torch.sum(A) - \
                         torch.sum(hat_ys * (1-A))/torch.sum(1-A)
                     Astral_disp = ((torch.sum(hat_ys1 * A)/torch.sum(A)) / (torch.sum(hat_ys1 * (1-A))/torch.sum(1-A))).detach().cpu().numpy()
+                
+                         
+            if self.disparity_type == "Eoppo":
+                if torch.sum(A * y).float() == 0:
+                    pred_dis = - torch.sum(torch.sigmoid(10 * ys_pre) * (1-A) * y)/torch.sum((1-A) * y)
+                    disparitys = - torch.sum(hat_ys * (1-A) * y)/torch.sum((1-A) * y)
+                    Astral_disp = ((torch.sum(hat_ys1 * A * y)) / (torch.sum(hat_ys1 * (1-A) * y)/torch.sum((1-A) * y))).detach().cpu().numpy()
+
+                elif torch.sum((1-A) * y).float() == 0:
+                    pred_dis = torch.sum(torch.sigmoid(10 * ys_pre) * A * y)/torch.sum(A * y)
+                    disparitys = torch.sum(hat_ys * A * y)/torch.sum(A * y)
+                    Astral_disp = (torch.sum(hat_ys1 * A * y)/torch.sum(A * y)).detach().cpu().numpy()
+                else:
+                    pred_dis = torch.sum(torch.sigmoid(10 * ys_pre) * A * y)/torch.sum(
+                        A * y) - torch.sum(torch.sigmoid(10 * ys_pre) * (1-A) * y)/torch.sum((1-A) * y)
+                    disparitys = torch.sum(hat_ys * A * y)/torch.sum(A * y) - \
+                        torch.sum(hat_ys * (1-A) * y)/torch.sum((1-A) * y)
+                    Astral_disp = ((torch.sum(hat_ys1 * A * y)/torch.sum(A * y)) / (torch.sum(hat_ys1 * (1-A) * y)/torch.sum((1-A) * y))).detach().cpu().numpy()
+                                       
 
             return task_loss, accs, aucs, pred_dis, disparitys, ys, Astral_disp
 
         else:
             print("error model in forward")
             exit()
+
+
+class SVMTrain(torch.nn.Module):
+
+    def __init__(self, model, disparity_type="DP", dataset="adult", warmup="no"):
+        super(SVMTrain, self).__init__()
+        self.model = model
+        self.loss = svm_loss
+        self.disparity_type = disparity_type
+        self.dataset = dataset
+        self.warmup = warmup
+
+        # * warmup
+        if warmup == "Adult_":
+            # with open('../../astral-experiments/warmup_models_ASTRAL/logisticPytorch_Adult', "rb") as f:  # Unpickling
+            with open('../../astral-experiments/warmup_models_ASTRAL/LogisticPytorch_Adult_sex_race_age_new_privileged',
+                      "rb") as f:  # Unpickling
+                weights = pickle.load(f)
+            dict = {'layers.0.weight': torch.tensor([weights[:-1]]), 'layers.0.bias': torch.tensor([weights[-1]])}
+            model.load_state_dict(dict, strict=True)
+        if warmup == "Adult-race":
+            # with open('../../astral-experiments/warmup_models_ASTRAL/LogisticPytorch_Adult_race_new_privileged', "rb") as f:  # Unpickling
+            with open('astral-experiments/warmup_models/race/logisticPytorch_Adult_race', "rb") as f:  # Unpickling
+                weights = pickle.load(f)
+            dict = {'layers.0.weight': torch.tensor([weights[:-1]]), 'layers.0.bias': torch.tensor([weights[-1]])}
+            model.load_state_dict(dict, strict=True)
+        if warmup == "KDD":
+            # with open('../../astral-experiments/warmup_models_ASTRAL/LogisticPytorch_Adult_race_new_privileged', "rb") as f:  # Unpickling
+            with open('../../astral-datasets/Configurations/logisticPytorch_KDD_age_gender_race',
+                      "rb") as f:  # Unpickling
+                weights = pickle.load(f)
+            dict = {'layers.0.weight': torch.tensor([weights[:-1]]), 'layers.0.bias': torch.tensor([weights[-1]])}
+            model.load_state_dict(dict, strict=True)
+        elif warmup == "MEPS":
+            # with open('../../astral-experiments/warmup_models_ASTRAL/logisticPytorch_MEPS_fcfl', "rb") as f:  # Unpickling
+            with open('../../astral-experiments/warmup_models_ASTRAL/LogisticPytorch_MEPS_sex_race_privileged',
+                      "rb") as f:  # Unpickling
+                weights = pickle.load(f)
+            dict = {'layers.0.weight': torch.tensor([weights[:-1]]), 'layers.0.bias': torch.tensor([weights[-1]])}
+            model.load_state_dict(dict, strict=True)
+        elif warmup == "Dutch":
+            with open('../../astral-experiments/warmup_models_ASTRAL/LogisticPytorch_Dutch_sex_standard2attr',
+                      "rb") as f:  # Unpickling
+                weights = pickle.load(f)
+            dict = {'layers.0.weight': torch.tensor([weights[:-1]]), 'layers.0.bias': torch.tensor([weights[-1]])}
+            model.load_state_dict(dict, strict=True)
+        else:
+            pass
+
+    def forward(self, x, y, A):
+        ys_pre = self.model(x.float()).flatten()
+        hat_ys_ = (2 * (ys_pre >= 0) - 1).float()
+        hat_ys = (hat_ys_ >= 0).float()
+        hat_ys__ = F.relu(hat_ys) / torch.max(torch.tensor(0.00001).cuda(),(hat_ys - 0.5))
+        y_ = y.view(len(y),1).float()
+        y_[y_==0.] = -1.
+        ys_pre_ = ys_pre.view(len(ys_pre),1)
+        task_loss = self.loss(torch.sigmoid(ys_pre), y_)
+        print(task_loss)
+        accs = torch.mean((hat_ys == y).float()).item()
+        aucs = 0
+        if True:
+            if self.disparity_type == "DP":
+                if torch.sum(A).float() == 0:
+                    pred_dis = - torch.sum(torch.sigmoid(10 * ys_pre) * (1 - A)) / torch.sum(1 - A)
+                    disparitys = - torch.sum(hat_ys * (1 - A)) / torch.sum(1 - A)
+                    Astral_disp = ((torch.sum(hat_ys__ * A)) / (
+                                torch.sum(hat_ys__ * (1 - A)) / torch.sum(1 - A))).detach().cpu().numpy()
+
+                elif torch.sum(1 - A).float() == 0:
+                    pred_dis = torch.sum(torch.sigmoid(10 * ys_pre) * A) / torch.sum(A)
+                    disparitys = torch.sum(hat_ys * A) / torch.sum(A)
+                    Astral_disp = (torch.sum(hat_ys__ * A) / torch.sum(A)).detach().cpu().numpy()
+                else:
+                    pred_dis = torch.sum(torch.sigmoid(10 * ys_pre) * A) / torch.sum(
+                        A) - torch.sum(torch.sigmoid(10 * ys_pre) * (1 - A)) / torch.sum(1 - A)
+                    disparitys = torch.sum(hat_ys * A) / torch.sum(A) - \
+                                 torch.sum(hat_ys * (1 - A)) / torch.sum(1 - A)
+                    Astral_disp = ((torch.sum(hat_ys__ * A) / torch.sum(A)) / (
+                                torch.sum(hat_ys__ * (1 - A)) / torch.sum(1 - A))).detach().cpu().numpy()
+
+            if self.disparity_type == "Eoppo":
+                if torch.sum(A * y).float() == 0:
+                    pred_dis = - torch.sum(torch.sigmoid(10 * ys_pre) * (1 - A) * y) / torch.sum((1 - A) * y)
+                    disparitys = - torch.sum(hat_ys * (1 - A) * y) / torch.sum((1 - A) * y)
+                    Astral_disp = ((torch.sum(hat_ys__ * A * y)) / (
+                                torch.sum(hat_ys__ * (1 - A) * y) / torch.sum((1 - A) * y))).detach().cpu().numpy()
+
+                elif torch.sum((1 - A) * y).float() == 0:
+                    pred_dis = torch.sum(torch.sigmoid(10 * ys_pre) * A * y) / torch.sum(A * y)
+                    disparitys = torch.sum(hat_ys * A * y) / torch.sum(A * y)
+                    Astral_disp = (torch.sum(hat_ys__ * A * y) / torch.sum(A * y)).detach().cpu().numpy()
+                else:
+                    pred_dis = torch.sum(torch.sigmoid(10 * ys_pre) * A * y) / torch.sum(
+                        A * y) - torch.sum(torch.sigmoid(10 * ys_pre) * (1 - A) * y) / torch.sum((1 - A) * y)
+                    disparitys = torch.sum(hat_ys * A * y) / torch.sum(A * y) - \
+                                 torch.sum(hat_ys * (1 - A) * y) / torch.sum((1 - A) * y)
+                    Astral_disp = ((torch.sum(hat_ys__ * A * y) / torch.sum(A * y)) / (
+                                torch.sum(hat_ys__ * (1 - A) * y) / torch.sum((1 - A) * y))).detach().cpu().numpy()
+
+            return task_loss, accs, aucs, pred_dis, disparitys, hat_ys, Astral_disp
+
+        else:
+            print("error model in forward")
+            exit()
+
 
 
 class RegressionModel(torch.nn.Module):
@@ -113,6 +248,27 @@ class RegressionModel(torch.nn.Module):
             else:
                 y = y_temp
         return y
+
+class Binary_SVM(nn.Module):
+    def __init__(self, n_feats, nb_classes):
+        super(Binary_SVM, self).__init__()
+        self.layers = nn.ModuleList()
+        self.layers.append(nn.Linear(n_feats, 1))
+
+    def forward(self, x):
+        y = x
+        for i in range(len(self.layers)):
+            y_temp = self.layers[i](y)
+            if i < len(self.layers) - 1:
+                y = torch.tanh(y_temp)
+            else:
+                y = y_temp
+        return y
+
+def svm_loss(outputs, targets):
+    hinge_loss = torch.mean(torch.max(torch.zeros_like(targets), 1 - targets * outputs))
+    #regularization = torch.mean(torch.norm(svm_model.fc.weight))
+    return hinge_loss
 
 class MODEL(object):
     def __init__(self, args, logger, writer):
@@ -149,7 +305,12 @@ class MODEL(object):
         self.performence_only = args.uniform
         self.policy = args.policy
         self.disparity_type = args.disparity_type
-        self.model = RegressionTrain(RegressionModel(args.n_feats, args.n_hiddens), args.disparity_type, args.dataset, args.warmup)
+        self.model_name = args.model_name
+        if self.model_name == 'LR':
+            self.model = RegressionTrain(RegressionModel(args.n_feats, args.n_hiddens), args.disparity_type, args.dataset, args.warmup)
+        elif self.model_name == 'SVM':
+            self.model = SVMTrain(Binary_SVM(args.n_feats, args.n_hiddens), args.disparity_type,
+                                         args.dataset, args.warmup)
         self.log_train = dict()
         self.log_test = dict()
         self.log_validation = dict()
@@ -314,21 +475,20 @@ class MODEL(object):
                         pred_labels_fairness = pred_labels_fairness.numpy()
                         features_fairness = features_fairness.numpy()
 
-#                    fairness_rep.append(fairness_report(features_fairness, labels_fairness.astype(int), pred_labels_fairness.astype(int), np.array(self.get_weights()), self.sensitive_attr))
-#                    fairness_rep1.append(fairness_report_indice(features_fairness, labels_fairness.astype(int),
-#                                                                pred_labels_fairness.astype(int),
-#                                                                np.array(self.get_weights()),
-#                                                                -1))
-#                    fairness_rep2.append(fairness_report_indice(features_fairness, labels_fairness.astype(int),
-#                                                        pred_labels_fairness.astype(int), np.array(self.get_weights()),
-#                                                        -2))
-#                    fairness_rep3.append(fairness_report_indice(features_fairness, labels_fairness.astype(int),
-#                                                        pred_labels_fairness.astype(int), np.array(self.get_weights()),
-#                                                        -3))
+                    fairness_rep.append(fairness_report(features_fairness, labels_fairness.astype(int), pred_labels_fairness.astype(int), np.array(self.get_weights()), self.sensitive_attr, self.model.disparity_type))
+                fairness_rep1.append(fairness_report_indice(features_fairness, labels_fairness.astype(int),
+                                                                pred_labels_fairness.astype(int),
+                                                                np.array(self.get_weights()),
+                                                                -1, self.model.disparity_type))
+                fairness_rep2.append(fairness_report_indice(features_fairness, labels_fairness.astype(int),
+                                                        pred_labels_fairness.astype(int), np.array(self.get_weights()),
+                                                        -2, self.model.disparity_type))
+                fairness_rep3.append(fairness_report_indice(features_fairness, labels_fairness.astype(int),
+                                                        pred_labels_fairness.astype(int), np.array(self.get_weights()),
+                                                        -3, self.model.disparity_type))
 
                 self.log_test[str(epoch)] = { "client_losses_t": losses, "pred_client_disparities_t": pred_diss, "client_accs_t": accs, "client_aucs_t": aucs, "client_disparities_t": diss, "max_losses_t": [max(losses), max(diss)], "Astral_disparity_t": Astral_disparity, "Fairness report": fairness_rep,
                                               "Fairness report 1": fairness_rep1,      "Fairness report 2": fairness_rep2, "Fairness report 3": fairness_rep3}
-            
             if if_train:
                 for i, item in enumerate(losses):
                     self.writer.add_scalar("valid_train/loss_:"+str(i),  item , epoch)
@@ -339,16 +499,17 @@ class MODEL(object):
 
             elif (self.traces == 'test' or self.traces == 'both'):
                 for i, item in enumerate(losses):
+                    print(accs[i], aucs[i], diss[i], pred_diss[i], Astral_disparity[i], fairness_rep[i])
                     self.writer.add_scalar("test/loss_:"+str(i),  item , epoch)
                     self.writer.add_scalar("test/acc_:"+str(i),  accs[i], epoch)
                     self.writer.add_scalar("test/auc_:"+str(i),  aucs[i], epoch)
                     self.writer.add_scalar("test/disparity_:"+str(i),  diss[i], epoch)
                     self.writer.add_scalar("test/pred_disparity_:"+str(i),  pred_diss[i], epoch)
                     self.writer.add_scalar("test/Astral_disparity_:"+str(i),  Astral_disparity[i], epoch)
-#                    self.writer.add_text("test/fairness_report_:" + str(i),json.dumps(fairness_rep[i]), epoch)
-#                    self.writer.add_text("test/fairness_report1_:" + str(i),json.dumps(fairness_rep1[i]), epoch)
-#                    self.writer.add_text("test/fairness_report2_:" + str(i),json.dumps(fairness_rep2[i]), epoch)
-#                    self.writer.add_text("test/fairness_report3_:" + str(i),json.dumps(fairness_rep3[i]), epoch)
+                    self.writer.add_text("test/fairness_report_:" + str(i),json.dumps(fairness_rep[i]), epoch)
+                self.writer.add_text("test/fairness_report1_:",json.dumps(fairness_rep1), epoch)
+                self.writer.add_text("test/fairness_report2_:",json.dumps(fairness_rep2), epoch)
+                self.writer.add_text("test/fairness_report3_:",json.dumps(fairness_rep3), epoch)
             if (self.traces == 'valid' or self.traces == 'both'):
                 losses = []
                 accs = []
@@ -385,7 +546,6 @@ class MODEL(object):
                             Y = Y.cuda()
                             A = A.cuda()
                         loss, acc, auc, pred_dis, disparity, pred_y, Astral_disp = self.model(X, Y, A)
-
                         pred_labels = (pred_y >=0.5).float().cpu()
                         pred_labels_fairness = np.concatenate((pred_labels_fairness, pred_labels.reshape(-1)), axis=0) if pred_labels_fairness.size else pred_labels.reshape(-1)
                         pred_labels = pred_labels.view(len(pred_labels), -1)
@@ -409,16 +569,16 @@ class MODEL(object):
                         pred_labels_fairness = pred_labels_fairness.numpy()
                         features_fairness = features_fairness.numpy()
 
-#                    fairness_rep.append(fairness_report(features_fairness, labels_fairness.astype(int), pred_labels_fairness.astype(int), np.array(self.get_weights()), self.sensitive_attr))
-#                    fairness_rep1.append(fairness_report_indice(features_fairness, labels_fairness.astype(int),
-#                                                        pred_labels_fairness.astype(int), np.array(self.get_weights()),
-#                                                        -1))
-#                    fairness_rep2.append(fairness_report_indice(features_fairness, labels_fairness.astype(int),
-#                                                        pred_labels_fairness.astype(int), np.array(self.get_weights()),
-#                                                        -2))
-#                    fairness_rep3.append(fairness_report_indice(features_fairness, labels_fairness.astype(int),
-#                                                        pred_labels_fairness.astype(int), np.array(self.get_weights()),
-#                                                        -3))
+                    fairness_rep.append(fairness_report(features_fairness, labels_fairness.astype(int), pred_labels_fairness.astype(int), np.array(self.get_weights()), self.sensitive_attr, self.model.disparity_type))
+                fairness_rep1.append(fairness_report_indice(features_fairness, labels_fairness.astype(int),
+                                                        pred_labels_fairness.astype(int), np.array(self.get_weights()),
+                                                        -1, self.model.disparity_type))
+                fairness_rep2.append(fairness_report_indice(features_fairness, labels_fairness.astype(int),
+                                                       pred_labels_fairness.astype(int), np.array(self.get_weights()),
+                                                        -2, self.model.disparity_type))
+                fairness_rep3.append(fairness_report_indice(features_fairness, labels_fairness.astype(int),
+                                                        pred_labels_fairness.astype(int), np.array(self.get_weights()),
+                                                        -3, self.model.disparity_type))
 
                 self.log_validation[str(epoch)] = { "client_losses_t": losses, "pred_client_disparities_t": pred_diss, "client_accs_t": accs, "client_aucs_t": aucs, "client_disparities_t": diss, "max_losses_t": [max(losses), max(diss)], "Astral_disparity_t": Astral_disparity, "Fairness report": fairness_rep,
                                                     "Fairness report 1": fairness_rep1 ,   "Fairness report 2": fairness_rep2, "Fairness report 3": fairness_rep3}
@@ -430,10 +590,10 @@ class MODEL(object):
                     self.writer.add_scalar("valid/disparity_:"+str(i),  diss[i], epoch)
                     self.writer.add_scalar("valid/pred_disparity_:"+str(i),  pred_diss[i], epoch)
                     self.writer.add_scalar("valid/Astral_disparity_:"+str(i),  Astral_disparity[i], epoch)
-#                    self.writer.add_text("valid/fairness_report_:" + str(i), json.dumps(fairness_rep[i]), epoch)
-#                    self.writer.add_text("valid/fairness_report1_:" + str(i), json.dumps(fairness_rep1[i]), epoch)
-#                    self.writer.add_text("valid/fairness_report2_:" + str(i), json.dumps(fairness_rep2[i]), epoch)
-#                    self.writer.add_text("valid/fairness_report3_:" + str(i), json.dumps(fairness_rep3[i]), epoch)
+                    self.writer.add_text("valid/fairness_report_:" + str(i), json.dumps(fairness_rep[i]), epoch)
+                self.writer.add_text("valid/fairness_report1_:" , json.dumps(fairness_rep1), epoch)
+                self.writer.add_text("valid/fairness_report2_:" , json.dumps(fairness_rep2), epoch)
+                self.writer.add_text("valid/fairness_report3_:" , json.dumps(fairness_rep3), epoch)
             return losses, accs, diss, pred_diss, aucs
    
     def soften_losses(self, losses, delta):
@@ -496,7 +656,6 @@ class MODEL(object):
         param_size = 0
         for param in self.model.parameters():
             param_size += param.nelement()
-     
         comm_downstream= param_size*self.n_clients
         for client_idx in range(self.n_clients):
             try:
