@@ -1,0 +1,56 @@
+{
+   "fl_parameters":{
+      "nb_runs":1,
+      "nb_rounds":150,
+      "nb_clients":10,
+      "ratio_of_participating_clients":1,
+      "participants_selection_method":"random",
+      "aggregation_method":"fed_avg",
+      "metrics_collection_path":"./metrics",
+      "warmup":1
+   },
+   "fl_data_preparation_info":{
+      "initial_data_preparation":0,
+      "save_generated_datasets":0
+   },
+   "learning_info":{
+      "model_name":"Logistic regression",
+      "model_class":"LogisticRegressionPytorch",
+      "nb_inputs":11,
+      "nb_outputs":2,
+      "nb_epochs":100,
+      "batch_size":256,
+      "learning_rate":0.0005,
+      "learning_rate_type":"dynamic",
+      "learning_rate_frequency":10,
+      "learning_rate_fraction":2,
+      "learning_rate_min":1e-07,
+      "weight_decay":0.05,
+      "optimizer_class":"SGD",
+      "loss_class":"BCEWithLogitsLoss",
+      "warmup_parameters_path":"./datasets/DC/initial_model",
+      "byzantine":0
+   },
+   "data_info":{
+      "name":"DC",
+      "sensitive_att_name":["age","sex"],
+      "target_var_name":"occupation",
+      "nb_classes":2,
+      "nb_features":11,
+      "validation_set_path":"./datasets/DC/valid.csv",
+      "test_set_path":"./datasets/DC/test.csv",
+      "standardization":1,
+      "clients_train_sets_path":"./datasets/DC/train"
+   },
+   "bias_mitigation_info":{
+      "bias_mitigation_name":"ASTRAL_OPT",
+      "variant": "differential_evolution", 
+      "fairness_metric_name": "Statistical Parity Difference",
+      "eps":0.03,
+      "logs":1,
+      "popsize":100,
+      "recombination":0.7,
+      "maxiter": 300
+   },
+   "remark":"FedAvg+DE Dutch 4 clients, one per regions with warmup"
+}
