@@ -6,6 +6,8 @@ import torch
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.functional import normalize
+from torchvision.models import resnet18
+import torch.nn.init as init
 # from tensorflow_privacy.privacy.analysis.compute_noise_from_budget_lib import compute_noise
 # from opacus import PrivacyEngine
 import warnings
@@ -357,55 +359,10 @@ class LogisticRegressionPytorch(FLModel):
         dict_metrics = {**additional_metrics, **fairness_rep}
         loss = sum(batch_loss)/len(batch_loss)
         accuracy = correct / total
+
         return accuracy, loss, dict_metrics
     
-    def test_inference_fairfed_DI(self, testing_dataset, test_batch_size = 64):
-        n_yz = {}
-        for y in [0,1]:
-            for y_true in [0,1]:
-                for z in range(2):
-                    n_yz[(y,y_true,z)] = 0
-        # Returns the test accuracy and loss. 
-        test_loader = DataLoader(testing_dataset, batch_size=test_batch_size, shuffle=True)
-        model = copy.deepcopy(self.model)
-        model.eval()
-        loss, total, correct = 0.0, 0.0, 0.0
-        device = "cpu"
-        criterion = self.criterion.to(device)
-        features_fairness = np.array([])
-        labels_fairness = np.array([])
-        pred_labels_fairness = np.array([])
-        with torch.no_grad() :
-            batch_loss = []
-            for batch_idx, (features, labels, SA) in enumerate(test_loader):
-                (features, labels, SA) = (features.to(self.device), labels.to(self.device), SA.to(self.device))
-                features_fairness = np.concatenate((features_fairness, features), axis=0) if features_fairness.size else features
-                labels_fairness = np.concatenate((labels_fairness, labels), axis=0) if labels_fairness.size else labels
-                SA = SA.view(len(SA), -1)
-                labels = labels.view(len(labels), -1)
-                # Inference
-                task_loss, accs, aucs, pred_dis, disparitys, probas, logits = model(features, labels, SA)
-                labels = labels.view(len(labels), -1)
-                batch_loss.append(criterion(logits, labels).item())
-                # Prediction
-                pred_labels =probas.round()
-                pred_labels_fairness = np.concatenate((pred_labels_fairness, pred_labels.reshape(-1)), axis=0) if pred_labels_fairness.size else pred_labels.reshape(-1)
-                pred_labels = pred_labels.view(len(pred_labels), -1)
-                for yz in n_yz:
-                    n_yz[yz] += torch.sum((pred_labels == yz[0]) & (labels == yz[1]) & (SA == yz[2])).item()
-                bool_correct = torch.eq(pred_labels, labels)
-                correct += torch.sum(bool_correct).item()
-                total += len(labels)      
-        if type(labels_fairness)==torch.Tensor and type(pred_labels_fairness)==torch.Tensor and type(features_fairness)==torch.Tensor:
-            labels_fairness=labels_fairness.numpy()
-            pred_labels_fairness=pred_labels_fairness.numpy()
-            features_fairness = features_fairness.numpy()
-        additional_metrics = get_eval_metrics_for_classificaton(labels_fairness.astype(int), pred_labels_fairness.astype(int))
-        fairness_rep = fairness_report(features_fairness, labels_fairness.astype(int), pred_labels_fairness.astype(int), testing_dataset.sensitive_att, np.array(self.get_weights()), testing_dataset.columns)
-        dict_metrics = {**additional_metrics, **fairness_rep}
-        loss = sum(batch_loss)/len(batch_loss)
-        accuracy = correct / total
-        return accuracy, loss, dict_metrics,n_yz
+
 
     def test_inference_quick(self, testing_dataset, test_batch_size = 64):
         # Returns the test accuracy and loss. """
@@ -441,8 +398,8 @@ class LogisticRegressionPytorch(FLModel):
         fairness_rep = spd_report(features_fairness, labels_fairness.astype(int), pred_labels_fairness.astype(int), testing_dataset.sensitive_att, testing_dataset.columns)
         dict_metrics = {**fairness_rep}
         accuracy = correct / total
-        # print(accuracy)
-        # print(dict_metrics)
+        print(accuracy)
+        print(dict_metrics)
         return accuracy, dict_metrics
 
 
@@ -485,100 +442,7 @@ class LogisticRegressionPytorch(FLModel):
         return accuracy, dict_metrics
     
 
-    def test_inference_SPD_fairfed(self, testing_dataset, test_batch_size = 64):
-        # Returns the test accuracy and loss.
-        n_yz = {}
-        for y in [0,1]:
-            for z in range(2):
-                n_yz[(y,z)] = 0
-        test_loader = DataLoader(testing_dataset, batch_size=test_batch_size, shuffle=True)
-        model = copy.deepcopy(self.model)
-        model.eval()
-        loss, total, correct = 0.0, 0.0, 0.0
-        device = "cpu"
-        criterion = self.criterion.to(device)
-        features_fairness = np.array([])
-        labels_fairness = np.array([])
-        pred_labels_fairness = np.array([])
-        with torch.no_grad() :
-            batch_loss = []
-            for batch_idx, (features, labels, SA) in enumerate(test_loader):
-                (features, labels, SA) = (features.to(self.device), labels.to(self.device), SA.to(self.device))
-                features_fairness = np.concatenate((features_fairness, features), axis=0) if features_fairness.size else features
-                labels_fairness = np.concatenate((labels_fairness, labels), axis=0) if labels_fairness.size else labels
-                SA = SA.view(len(SA), -1)
-                labels = labels.view(len(labels), -1)
-                # Inference
-                task_loss, accs, aucs, pred_dis, disparitys, probas, logits = model(features, labels, SA)
-                labels = labels.view(len(labels), -1)
-                batch_loss.append(criterion(logits, labels).item())
-                # Prediction
-                pred_labels =probas.round()
-                pred_labels_fairness = np.concatenate((pred_labels_fairness, pred_labels.reshape(-1)), axis=0) if pred_labels_fairness.size else pred_labels.reshape(-1)
-                pred_labels = pred_labels.view(len(pred_labels), -1)
-                for yz in n_yz:
-                    n_yz[yz] += torch.sum((pred_labels == yz[0]) & (SA == yz[1])).item() 
-                bool_correct = torch.eq(pred_labels, labels)
-                correct += torch.sum(bool_correct).item()
-                total += len(labels)      
-        if type(labels_fairness)==torch.Tensor and type(pred_labels_fairness)==torch.Tensor and type(features_fairness)==torch.Tensor:
-            labels_fairness=labels_fairness.numpy()
-            pred_labels_fairness=pred_labels_fairness.numpy()
-            features_fairness = features_fairness.numpy()
-        additional_metrics = get_eval_metrics_for_classificaton(labels_fairness.astype(int), pred_labels_fairness.astype(int))
-        fairness_rep = fairness_report(features_fairness, labels_fairness.astype(int), pred_labels_fairness.astype(int), testing_dataset.sensitive_att, np.array(self.get_weights()), testing_dataset.columns)
-        dict_metrics = {**additional_metrics, **fairness_rep}
-        loss = sum(batch_loss)/len(batch_loss)
-        accuracy = correct / total
-        return accuracy, loss, dict_metrics,n_yz
 
-    def test_inference_EOD_fairfed(self, testing_dataset, test_batch_size = 64):
-            # Returns the test accuracy and loss.
-            n_yz = {}
-            for y in [0,1]:
-                for y_true in [0,1]:
-                    for z in range(2):
-                        n_yz[(y,y_true,z)] = 0
-            test_loader = DataLoader(testing_dataset, batch_size=test_batch_size, shuffle=True)
-            model = copy.deepcopy(self.model)
-            model.eval()
-            loss, total, correct = 0.0, 0.0, 0.0
-            device = "cpu"
-            criterion = self.criterion.to(device)
-            features_fairness = np.array([])
-            labels_fairness = np.array([])
-            pred_labels_fairness = np.array([])
-            with torch.no_grad() :
-                batch_loss = []
-                for batch_idx, (features, labels, SA) in enumerate(test_loader):
-                    (features, labels, SA) = (features.to(self.device), labels.to(self.device), SA.to(self.device))
-                    features_fairness = np.concatenate((features_fairness, features), axis=0) if features_fairness.size else features
-                    labels_fairness = np.concatenate((labels_fairness, labels), axis=0) if labels_fairness.size else labels
-                    SA = SA.view(len(SA), -1)
-                    labels = labels.view(len(labels), -1)
-                    # Inference
-                    task_loss, accs, aucs, pred_dis, disparitys, probas, logits = model(features, labels, SA)
-                    labels = labels.view(len(labels), -1)
-                    batch_loss.append(criterion(logits, labels).item())
-                    # Prediction
-                    pred_labels =probas.round()
-                    pred_labels_fairness = np.concatenate((pred_labels_fairness, pred_labels.reshape(-1)), axis=0) if pred_labels_fairness.size else pred_labels.reshape(-1)
-                    pred_labels = pred_labels.view(len(pred_labels), -1)
-                    for yz in n_yz:
-                        n_yz[yz] += torch.sum((pred_labels == yz[0]) & (labels == yz[1]) & (SA == yz[2])).item() 
-                    bool_correct = torch.eq(pred_labels, labels)
-                    correct += torch.sum(bool_correct).item()
-                    total += len(labels)      
-            if type(labels_fairness)==torch.Tensor and type(pred_labels_fairness)==torch.Tensor and type(features_fairness)==torch.Tensor:
-                labels_fairness=labels_fairness.numpy()
-                pred_labels_fairness=pred_labels_fairness.numpy()
-                features_fairness = features_fairness.numpy()
-            additional_metrics = get_eval_metrics_for_classificaton(labels_fairness.astype(int), pred_labels_fairness.astype(int))
-            fairness_rep = fairness_report(features_fairness, labels_fairness.astype(int), pred_labels_fairness.astype(int), testing_dataset.sensitive_att, np.array(self.get_weights()), testing_dataset.columns)
-            dict_metrics = {**additional_metrics, **fairness_rep}
-            loss = sum(batch_loss)/len(batch_loss)
-            accuracy = correct / total
-            return accuracy, loss, dict_metrics,n_yz
 
     def test_inference_quick_discr_idx(self, testing_dataset, test_batch_size = 64):
         # Returns the test accuracy and loss. """
@@ -734,6 +598,27 @@ class LogisticRegressionPytorch_DP(LogisticRegressionPytorch):
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 class Binary_SVM(nn.Module):
     def __init__(self, n_features, nb_classes):
         super(Binary_SVM, self).__init__()
@@ -786,6 +671,7 @@ class BinarySVMPytorch(FLModel):
         if warmup == 1:
             with open(model_spec["warmup_parameters_path"], "rb") as f:  # Unpickling
                 weights = pickle.load(f)
+                print(weights)
                 self.set_weights(weights)
 
     def init_warm_up(self, model_weights):
@@ -856,12 +742,9 @@ class BinarySVMPytorch(FLModel):
                 self.model.zero_grad()
 
                 output = self.model(features.float())
-                print('hey')
-                print(output, output.shape)
-                print(labels,labels.shape)
 
                 loss = self.criterion(output, labels.float())
-                print(loss)
+                
                 loss.backward()
                 self.optimizer.step()
                 batch_loss.append(loss.item())
@@ -934,204 +817,7 @@ class BinarySVMPytorch(FLModel):
         loss = sum(batch_loss) / len(batch_loss)
         accuracy = correct / total
         return accuracy, loss, dict_metrics
-    
-    def test_inference_fairfed_DI(self, testing_dataset, test_batch_size=64):
-        n_yz = {}
-        for y in [0,1]:
-            for y_true in [0,1]:
-                for z in range(2):
-                    n_yz[(y,y_true,z)] = 0
-        # Returns the test accuracy and loss.
-        test_loader = DataLoader(testing_dataset, batch_size=test_batch_size, shuffle=True)
-        model = copy.deepcopy(self.model)
-        model.eval()
-        loss, total, correct = 0.0, 0.0, 0.0
-        features_fairness = np.array([])
-        labels_fairness = np.array([])
-        pred_labels_fairness = np.array([])
-
-        with torch.no_grad():
-            batch_loss = []
-
-            for batch_idx, (features, labels, SA) in enumerate(test_loader):
-                (features, labels, SA) = (features.to(self.device), labels.to(self.device), SA.to(self.device))
-                features_fairness = np.concatenate((features_fairness, features),
-                                                   axis=0) if features_fairness.size else features
-
-                labels[labels == 0] = -1
-                labels_fairness = np.concatenate((labels_fairness, labels), axis=0) if labels_fairness.size else labels
-
-                labels = labels.view(len(labels), -1)
-                # Inference
-                output = model(features.float())
-                labels = labels.view(len(labels), -1)
-                batch_loss.append(self.criterion(output, labels.float()).item())
-                # Prediction
-                pred_labels = 2 * (output >= 0) - 1
-                pred_labels_fairness = np.concatenate((pred_labels_fairness, pred_labels.reshape(-1)),
-                                                      axis=0) if pred_labels_fairness.size else pred_labels.reshape(-1)
-                pred_labels = pred_labels.view(len(pred_labels), -1)
-                for yz in n_yz:
-
-                    if yz[0] ==0:
-                        expected_value_pred = -1
-                    else:
-                        expected_value_pred = 1
-                    if yz[1] ==0:
-                        expected_value_truth = -1
-                    else:
-                        expected_value_truth = 1
-                    n_yz[yz] += torch.sum((pred_labels.reshape(-1) == expected_value_pred) & (labels.reshape(-1) == expected_value_truth) & (SA == yz[2])).item()
-
-                bool_correct = torch.eq(pred_labels, labels)
-                correct += torch.sum(bool_correct).item()
-                total += len(labels)
-
-        labels_fairness[labels_fairness == -1] = 0
-        pred_labels_fairness[pred_labels_fairness == -1] = 0
-        if type(labels_fairness) == torch.Tensor and type(pred_labels_fairness) == torch.Tensor and type(
-                features_fairness) == torch.Tensor:
-            labels_fairness = labels_fairness.numpy()
-            pred_labels_fairness = pred_labels_fairness.numpy()
-            features_fairness = features_fairness.numpy()
-        additional_metrics = get_eval_metrics_for_classificaton(labels_fairness.astype(int),
-                                                                pred_labels_fairness.astype(int))
-        fairness_rep = fairness_report(features_fairness, labels_fairness.astype(int), pred_labels_fairness.astype(int),
-                                       testing_dataset.sensitive_att, np.array(self.get_weights()),
-                                       testing_dataset.columns)
-        dict_metrics = {**additional_metrics, **fairness_rep}
-        loss = sum(batch_loss) / len(batch_loss)
-        accuracy = correct / total
-        return accuracy, loss, dict_metrics, n_yz
-
-    def test_inference_SPD_fairfed(self, testing_dataset, test_batch_size = 64):
-        # Returns the test accuracy and loss.
-        n_yz = {}
-        for y in [0,1]:
-            for z in range(2):
-                n_yz[(y,z)] = 0
-        test_loader = DataLoader(testing_dataset, batch_size=test_batch_size, shuffle=True)
-        model = copy.deepcopy(self.model)
-        model.eval()
-        loss, total, correct = 0.0, 0.0, 0.0
-        features_fairness = np.array([])
-        labels_fairness = np.array([])
-        pred_labels_fairness = np.array([])
-        with torch.no_grad():
-            batch_loss = []
-            for batch_idx, (features, labels, SA) in enumerate(test_loader):
-                (features, labels, SA) = (features.to(self.device), labels.to(self.device), SA.to(self.device))
-                features_fairness = np.concatenate((features_fairness, features),
-                                                axis=0) if features_fairness.size else features
-
-                labels[labels == 0] = -1
-                labels_fairness = np.concatenate((labels_fairness, labels), axis=0) if labels_fairness.size else labels
-
-                labels = labels.view(len(labels), -1)
-                # Inference
-                output = model(features.float())
-                labels = labels.view(len(labels), -1)
-                batch_loss.append(self.criterion(output, labels.float()).item())
-                # Prediction
-                pred_labels = 2 * (output >= 0) - 1
-                pred_labels_fairness = np.concatenate((pred_labels_fairness, pred_labels.reshape(-1)),
-                                                    axis=0) if pred_labels_fairness.size else pred_labels.reshape(-1)
-                pred_labels = pred_labels.view(len(pred_labels), -1)
-                for yz in n_yz:
-
-                    if yz[0] ==0:
-                        expected_value_pred = -1
-                    else:
-                        expected_value_pred = 1
-                    if yz[1] ==0:
-                        expected_value_truth = -1
-                    else:
-                        expected_value_truth = 1
-                    n_yz[yz] += torch.sum((pred_labels.reshape(-1) == expected_value_pred) & (labels.reshape(-1) == expected_value_truth) & (SA == yz[2])).item()
-                bool_correct = torch.eq(pred_labels, labels)
-                correct += torch.sum(bool_correct).item()
-                total += len(labels)
-        labels_fairness[labels_fairness == -1] = 0
-        pred_labels_fairness[pred_labels_fairness == -1] = 0
-        if type(labels_fairness) == torch.Tensor and type(pred_labels_fairness) == torch.Tensor and type(
-                features_fairness) == torch.Tensor:
-            labels_fairness = labels_fairness.numpy()
-            pred_labels_fairness = pred_labels_fairness.numpy()
-            features_fairness = features_fairness.numpy()
-        additional_metrics = get_eval_metrics_for_classificaton(labels_fairness.astype(int),
-                                                                pred_labels_fairness.astype(int))
-        fairness_rep = fairness_report(features_fairness, labels_fairness.astype(int), pred_labels_fairness.astype(int),
-                                    testing_dataset.sensitive_att, np.array(self.get_weights()),
-                                    testing_dataset.columns)
-        dict_metrics = {**additional_metrics, **fairness_rep}
-        loss = sum(batch_loss) / len(batch_loss)
-        accuracy = correct / total
-        return accuracy, loss, dict_metrics, n_yz
-    
-    def test_inference_EOD_fairfed(self, testing_dataset, test_batch_size = 64):
-        # Returns the test accuracy and loss.
-        n_yz = {}
-        for y in [0,1]:
-            for y_true in [0,1]:
-                for z in range(2):
-                    n_yz[(y,y_true,z)] = 0
-        test_loader = DataLoader(testing_dataset, batch_size=test_batch_size, shuffle=True)
-        model = copy.deepcopy(self.model)
-        model.eval()
-        loss, total, correct = 0.0, 0.0, 0.0
-        features_fairness = np.array([])
-        labels_fairness = np.array([])
-        pred_labels_fairness = np.array([])
-        with torch.no_grad():
-            batch_loss = []
-            for batch_idx, (features, labels, SA) in enumerate(test_loader):
-                (features, labels, SA) = (features.to(self.device), labels.to(self.device), SA.to(self.device))
-                features_fairness = np.concatenate((features_fairness, features),
-                                                axis=0) if features_fairness.size else features
-
-                labels[labels == 0] = -1
-                labels_fairness = np.concatenate((labels_fairness, labels), axis=0) if labels_fairness.size else labels
-
-                labels = labels.view(len(labels), -1)
-                # Inference
-                output = model(features.float())
-                labels = labels.view(len(labels), -1)
-                batch_loss.append(self.criterion(output, labels.float()).item())
-                # Prediction
-                pred_labels = 2 * (output >= 0) - 1
-                pred_labels_fairness = np.concatenate((pred_labels_fairness, pred_labels.reshape(-1)),
-                                                    axis=0) if pred_labels_fairness.size else pred_labels.reshape(-1)
-                pred_labels = pred_labels.view(len(pred_labels), -1)
-                for yz in n_yz:
-
-                    if yz[0] ==0:
-                        expected_value_pred = -1
-                    else:
-                        expected_value_pred = 1
-                    if yz[1] ==0:
-                        expected_value_truth = -1
-                    else:
-                        expected_value_truth = 1
-                    n_yz[yz] += torch.sum((pred_labels.reshape(-1) == expected_value_pred) & (labels.reshape(-1) == expected_value_truth) & (SA == yz[2])).item()
-                bool_correct = torch.eq(pred_labels, labels)
-                correct += torch.sum(bool_correct).item()
-                total += len(labels)
-        labels_fairness[labels_fairness == -1] = 0
-        pred_labels_fairness[pred_labels_fairness == -1] = 0
-        if type(labels_fairness) == torch.Tensor and type(pred_labels_fairness) == torch.Tensor and type(
-                features_fairness) == torch.Tensor:
-            labels_fairness = labels_fairness.numpy()
-            pred_labels_fairness = pred_labels_fairness.numpy()
-            features_fairness = features_fairness.numpy()
-        additional_metrics = get_eval_metrics_for_classificaton(labels_fairness.astype(int),
-                                                                pred_labels_fairness.astype(int))
-        fairness_rep = fairness_report(features_fairness, labels_fairness.astype(int), pred_labels_fairness.astype(int),
-                                    testing_dataset.sensitive_att, np.array(self.get_weights()),
-                                    testing_dataset.columns)
-        dict_metrics = {**additional_metrics, **fairness_rep}
-        loss = sum(batch_loss) / len(batch_loss)
-        accuracy = correct / total
-        return accuracy, loss, dict_metrics, n_yz
+        
 
 
     def test_inference_quick(self, testing_dataset, test_batch_size=64):
@@ -1272,4 +958,695 @@ class BinarySVMPytorch(FLModel):
                                        testing_dataset.columns)
         dict_metrics = {**fairness_rep}
         accuracy = correct / total
+        return accuracy,  dict_metrics
+
+
+
+
+
+
+
+
+
+
+# Step 1: Define the ResNet model architecture
+class ImageTabularModel(nn.Module):
+    def __init__(self, num_tabular_features, num_classes):
+        super(ImageTabularModel, self).__init__()
+        
+        torch.manual_seed(42)
+
+        # Step 1: Define the ResNet-based image processing module
+        self.resnet = resnet18(pretrained=True)
+        num_resnet_features = self.resnet.fc.in_features
+        self.resnet.fc = nn.Identity()  # Remove the original classification layer
+
+        # Step 2: Define the fully connected layer-based tabular data processing module
+        self.tabular_fc = nn.Sequential(
+            nn.Linear(num_tabular_features, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU()
+        )
+
+        # Step 3: Define the final fully connected layer for binary classification
+        self.final_fc = nn.Sequential(
+            nn.Linear(num_resnet_features + 32, 16),
+            nn.ReLU(),
+            nn.Linear(16, num_classes),
+            nn.Sigmoid()  # Use Sigmoid for binary classification to get probabilities
+        )
+
+        # Step 4: Initialize the fully connected layers using He initialization
+        for m in self.tabular_fc.modules():
+            if isinstance(m, nn.Linear):
+                if isinstance(m.weight, nn.Parameter):
+                    init.kaiming_uniform_(m.weight.data)
+                if m.bias is not None:
+                    init.zeros_(m.bias.data)
+
+        for m in self.final_fc.modules():
+            if isinstance(m, nn.Linear):
+                if isinstance(m.weight, nn.Parameter):
+                    init.kaiming_uniform_(m.weight.data)
+                if m.bias is not None:
+                    init.zeros_(m.bias.data)
+                    
+
+    def forward(self, images, tabular_data):
+        # Process images using the ResNet module
+        image_features = self.resnet(images)
+        image_features = image_features.view(image_features.size(0), -1)
+
+        # Process tabular data using the fully connected layer module
+        tabular_features = self.tabular_fc(tabular_data)
+
+        # Concatenate the image and tabular features
+        combined_features = torch.cat((image_features, tabular_features), dim=1)
+
+        # Feed the concatenated features to the final fully connected layer for binary classification
+        output = self.final_fc(combined_features)
+
+        return output
+
+
+
+class ResnetPytorch(FLModel):
+    """docstring for LogisticRegressionPytorch"""
+
+    def __init__(self, model_spec, warmup, **kwargs):
+        super(ResnetPytorch, self).__init__(model_spec)
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.nb_tabular_features = model_spec['nb_tabular_inputs']
+        self.nb_classes = model_spec['nb_outputs']
+        self.model = ImageTabularModel(self.nb_tabular_features, self.nb_classes)
+        self.nb_epochs = model_spec['nb_epochs']
+        self.batch_size = model_spec['batch_size']
+        self.learning_rate = model_spec['learning_rate']
+        optimizer_class = model_spec['optimizer_class']
+        optimizer_class = getattr(torch.optim, optimizer_class)
+        try:
+            self.weight_decay = model_spec['weight_decay']
+        except:
+            self.weight_decay = 0
+        self.optimizer = optimizer_class(self.model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
+        try:
+            self.learning_rate_type = model_spec['learning_rate_type']
+            if self.learning_rate_type == 'dynamic':
+                self.learning_rate_freq = model_spec['learning_rate_frequency']
+                self.learning_rate_fraction = model_spec['learning_rate_fraction']
+                self.learning_rate_min = model_spec['learning_rate_min']
+            elif self.learning_rate_type == 'scheduler':
+                scheduler_class = model_spec['scheduler_class']
+                gamma = model_spec['gamma']
+                scheduler_class = getattr(torch.optim.lr_scheduler, scheduler_class)
+                self.scheduler = scheduler_class(self.optimizer, gamma=gamma)
+        except:
+            self.learning_rate_type = 'constant'
+        print(self.learning_rate_type)
+        print(self.learning_rate)
+        loss_class = model_spec['loss_class']
+        loss_class = getattr(nn, loss_class)
+        self.criterion = loss_class()  # nn.BCEWithLogitsLoss()
+        if warmup == 1:
+            raise NotImplementedError("This function is not yet implemented.")
+
+
+    def init_warm_up(self, model_weights):
+        raise NotImplementedError("This function is not yet implemented.")
+    def set_weights(self, model_weights):
+        self.model.load_state_dict(model_weights)
+
+
+    def get_weights(self):
+        return copy.deepcopy(self.model.state_dict())
+
+    def train(self, train_dataset, seed=42, test=False, test_dataset=None, validation=False, validation_dataset=None):
+        np.random.seed(seed)
+        random.seed(seed)
+        torch.manual_seed(seed)
+        epoch_accuracy = []
+        epoch_loss = []
+        print(self.batch_size)
+        self.train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
+
+        self.model.to(self.device)
+        self.model.train()
+
+        for i in range(self.nb_epochs):
+            batch_loss = []
+            total_correct, total_samples = 0, 0
+            for (batch_idx, (images, labels, SA)) in enumerate(self.train_loader):
+                (images, labels, SA) = (images.to(self.device), labels.to(self.device), SA.to(self.device))
+                labels = labels.view(len(labels), -1)
+                self.model.zero_grad()
+
+                output = self.model(images.float(), SA.float())
+                loss = self.criterion(output, labels.float())
+                loss.backward()
+                self.optimizer.step()
+                batch_loss.append(loss.item())
+
+                predicted_labels = (output >= 0.5).float()  # Threshold at 0.5 for binary classification
+                total_correct += torch.sum(predicted_labels == labels).item()
+                total_samples += len(labels)
+
+            epoch_accuracy.append( total_correct / total_samples)
+            epoch_loss.append(sum(batch_loss) / len(batch_loss))
+            print(i, epoch_loss[-1])
+            #print(i, epoch_accuracy)
+            if test:
+                test_acc, test_loss, test_metrics = self.test_inference(test_dataset)
+                self.test_metrics.append([i, test_acc, test_loss, test_metrics])
+                self.model.train()
+            if validation:
+                pass
+            self.update_learning_rate(i)
+        self.model.to('cpu')
+        print(i, epoch_accuracy)
+        self.test_inference(train_dataset, test_batch_size = self.batch_size)
+        return sum(epoch_loss) / len(epoch_loss)
+
+
+    def update_learning_rate(self, e):
+        if (self.learning_rate_type == 'dynamic'):
+            if (e != 0) & (e % self.learning_rate_freq == 0) & (self.learning_rate > self.learning_rate_min):
+                self.learning_rate = self.learning_rate / self.learning_rate_fraction
+                for g in self.optimizer.param_groups:
+                    g['lr'] = self.learning_rate
+        elif self.learning_rate_type == 'scheduler':
+            self.scheduler.step()
+
+    def test_inference(self, testing_dataset, test_batch_size = 64):
+        # Returns the test accuracy and loss. 
+        test_loader = DataLoader(testing_dataset, batch_size=test_batch_size, shuffle=True)
+        model = copy.deepcopy(self.model)
+        model.to(self.device)
+        model.eval()
+        loss, total, correct = 0.0, 0.0, 0.0
+        criterion = self.criterion.to(self.device)
+        SA_fairness = np.array([])
+        labels_fairness = np.array([])
+        pred_labels_fairness = np.array([])
+        with torch.no_grad() :
+            batch_loss = []
+
+            for batch_idx, (features, labels, SA) in enumerate(test_loader):
+                SA_fairness = np.concatenate((SA_fairness, SA), axis=0) if SA_fairness.size else SA
+                labels_fairness = np.concatenate((labels_fairness, labels), axis=0) if labels_fairness.size else labels
+                (features, labels, SA) = (features.to(self.device), labels.to(self.device), SA.to(self.device))
+                SA = SA.view(len(SA), -1)
+                labels = labels.view(len(labels), -1)
+                # Inference
+                output = model(features, SA)
+                labels = labels.view(len(labels), -1)
+                batch_loss.append(criterion(output, labels).item())
+                # Prediction
+                pred_labels = output.round()
+                pred_labels_fairness = np.concatenate((pred_labels_fairness, pred_labels.reshape(-1).cpu()), axis=0) if pred_labels_fairness.size else pred_labels.reshape(-1).cpu()
+                pred_labels = pred_labels.view(len(pred_labels), -1)
+                #print(labels.view(-1))
+                #print(output.view(-1))
+                bool_correct = torch.eq(pred_labels, labels)
+                correct += torch.sum(bool_correct).item()
+                total += len(labels)
+        model.to('cpu')
+       
+        if type(labels_fairness)==torch.Tensor and type(pred_labels_fairness)==torch.Tensor and type(SA_fairness)==torch.Tensor:
+            labels_fairness=labels_fairness.to('cpu').numpy()
+            pred_labels_fairness=pred_labels_fairness.to('cpu').numpy()
+            SA_fairness = SA_fairness.to('cpu').numpy()
+        additional_metrics = get_eval_metrics_for_classificaton(labels_fairness.astype(int), pred_labels_fairness.astype(int))
+        fairness_rep = fairness_report(SA_fairness, labels_fairness.astype(int), pred_labels_fairness.astype(int), testing_dataset.sensitive_att, np.array(self.get_weights()), testing_dataset.columns)
+        dict_metrics = {**additional_metrics, **fairness_rep}
+        loss = sum(batch_loss)/len(batch_loss)
+        accuracy = correct / total
+        print('ACCCCCCCCURACy  '+str(accuracy))
+        return accuracy, loss, dict_metrics
+    
+
+
+    def test_inference_quick_old(self, testing_dataset, test_batch_size = 64):
+
+
+        
+        if type(labels_fairness)==torch.Tensor and type(pred_labels_fairness)==torch.Tensor and type(SA_fairness)==torch.Tensor:
+            labels_fairness=labels_fairness.to('cpu').numpy()
+            pred_labels_fairness=pred_labels_fairness.to('cpu').numpy()
+            SA_fairness = SA_fairness.to('cpu').numpy()
+
+        fairness_rep = spd_report(SA_fairness, labels_fairness.astype(int), pred_labels_fairness.astype(int), testing_dataset.sensitive_att, testing_dataset.columns)
+        dict_metrics = {**fairness_rep}
+        accuracy = correct / total
+        print(accuracy, dict_metrics )
+        return accuracy,  dict_metrics
+
+
+    def test_inference_quick(self, testing_dataset, test_batch_size = 64):
+        # Returns the test accuracy and loss.
+        test_loader = DataLoader(testing_dataset, batch_size=test_batch_size, shuffle=True)
+
+        self.model.to(self.device)
+        self.model.eval()
+        loss, total, correct = 0.0, 0.0, 0.0
+        criterion = self.criterion.to(self.device)
+        SA_fairness = np.array([])
+        labels_fairness = np.array([])
+        pred_labels_fairness = np.array([])
+        with torch.no_grad() :
+            batch_loss = []
+
+            for batch_idx, (features, labels, SA) in enumerate(test_loader):
+                SA_fairness = np.concatenate((SA_fairness, SA), axis=0) if SA_fairness.size else SA
+                labels_fairness = np.concatenate((labels_fairness, labels), axis=0) if labels_fairness.size else labels
+                (features, labels, SA) = (features.to(self.device), labels.to(self.device), SA.to(self.device))
+                SA = SA.view(len(SA), -1)
+                labels = labels.view(len(labels), -1)
+                # Inference
+                output = self.model(features, SA)
+                if torch.isnan(output).any():
+                    return -100, {'Discrimination Index': [100 for i in range(testing_dataset.nb_sa)]}
+                labels = labels.view(len(labels), -1)
+                batch_loss.append(criterion(output, labels).item())
+                # Prediction
+                pred_labels = output.round()
+                pred_labels_fairness = np.concatenate((pred_labels_fairness, pred_labels.reshape(-1).cpu()), axis=0) if pred_labels_fairness.size else pred_labels.reshape(-1).cpu()
+                pred_labels = pred_labels.view(len(pred_labels), -1)
+#                print(pred_labels.view(-1))
+#                print(output.view(-1))
+                bool_correct = torch.eq(pred_labels, labels)
+                correct += torch.sum(bool_correct).item()
+                total += len(labels)      
+        self.model.to('cpu') 
+
+
+        if type(labels_fairness)==torch.Tensor and type(pred_labels_fairness)==torch.Tensor and type(SA_fairness)==torch.Tensor:
+            labels_fairness=labels_fairness.to('cpu').numpy()
+            pred_labels_fairness=pred_labels_fairness.to('cpu').numpy()
+            SA_fairness = SA_fairness.to('cpu').numpy()
+
+        fairness_rep = spd_report(SA_fairness, labels_fairness.astype(int), pred_labels_fairness.astype(int), testing_dataset.sensitive_att, testing_dataset.columns)
+        dict_metrics = {**fairness_rep}
+        accuracy = correct / total
+#        print(accuracy, dict_metrics )
+        return accuracy,  dict_metrics   
+
+
+    def test_inference_quick_EOD(self, testing_dataset, test_batch_size = 64):
+        # Returns the test accuracy and loss.
+        test_loader = DataLoader(testing_dataset, batch_size=test_batch_size, shuffle=True)
+
+        self.model.to(self.device)
+        self.model.eval()
+        loss, total, correct = 0.0, 0.0, 0.0
+        criterion = self.criterion.to(self.device)
+        SA_fairness = np.array([])
+        labels_fairness = np.array([])
+        pred_labels_fairness = np.array([])
+        with torch.no_grad() :
+            batch_loss = []
+
+            for batch_idx, (features, labels, SA) in enumerate(test_loader):
+                SA_fairness = np.concatenate((SA_fairness, SA), axis=0) if SA_fairness.size else SA
+                labels_fairness = np.concatenate((labels_fairness, labels), axis=0) if labels_fairness.size else labels
+                (features, labels, SA) = (features.to(self.device), labels.to(self.device), SA.to(self.device))
+                SA = SA.view(len(SA), -1)
+                labels = labels.view(len(labels), -1)
+                # Inference
+                output = self.model(features, SA)
+                if torch.isnan(output).any():
+                    return -100, {'Discrimination Index': [100 for i in range(testing_dataset.nb_sa)]}
+                labels = labels.view(len(labels), -1)
+                batch_loss.append(criterion(output, labels).item())
+                # Prediction
+                pred_labels = output.round()
+                pred_labels_fairness = np.concatenate((pred_labels_fairness, pred_labels.reshape(-1).cpu()), axis=0) if pred_labels_fairness.size else pred_labels.reshape(-1).cpu()
+                pred_labels = pred_labels.view(len(pred_labels), -1)
+#                print(pred_labels.view(-1))
+#                print(output.view(-1))
+                bool_correct = torch.eq(pred_labels, labels)
+                correct += torch.sum(bool_correct).item()
+                total += len(labels)      
+        self.model.to('cpu') 
+
+
+        if type(labels_fairness)==torch.Tensor and type(pred_labels_fairness)==torch.Tensor and type(SA_fairness)==torch.Tensor:
+            labels_fairness=labels_fairness.to('cpu').numpy()
+            pred_labels_fairness=pred_labels_fairness.to('cpu').numpy()
+            SA_fairness = SA_fairness.to('cpu').numpy()
+
+        fairness_rep = eod_report(SA_fairness, labels_fairness.astype(int), pred_labels_fairness.astype(int), testing_dataset.sensitive_att, testing_dataset.columns)
+        dict_metrics = {**fairness_rep}
+        accuracy = correct / total
+#        print(accuracy, dict_metrics )
+        return accuracy,  dict_metrics
+
+
+
+
+    def test_inference_quick_discr_idx(self, testing_dataset, test_batch_size = 64):
+        # Returns the test accuracy and loss.
+        test_loader = DataLoader(testing_dataset, batch_size=test_batch_size, shuffle=True)
+
+        self.model.to(self.device)
+        self.model.eval()
+        loss, total, correct = 0.0, 0.0, 0.0
+        criterion = self.criterion.to(self.device)
+        SA_fairness = np.array([])
+        labels_fairness = np.array([])
+        pred_labels_fairness = np.array([])
+        with torch.no_grad() :
+            batch_loss = []
+
+            for batch_idx, (features, labels, SA) in enumerate(test_loader):
+                SA_fairness = np.concatenate((SA_fairness, SA), axis=0) if SA_fairness.size else SA
+                labels_fairness = np.concatenate((labels_fairness, labels), axis=0) if labels_fairness.size else labels
+                (features, labels, SA) = (features.to(self.device), labels.to(self.device), SA.to(self.device))
+                SA = SA.view(len(SA), -1)
+                labels = labels.view(len(labels), -1)
+                # Inference
+                output = self.model(features, SA)
+                if torch.isnan(output).any():
+                    return -100, {'Discrimination Index': [100 for i in range(testing_dataset.nb_sa)]}
+                labels = labels.view(len(labels), -1)
+                batch_loss.append(criterion(output, labels).item())
+                # Prediction
+                pred_labels = output.round()
+                pred_labels_fairness = np.concatenate((pred_labels_fairness, pred_labels.reshape(-1).cpu()), axis=0) if pred_labels_fairness.size else pred_labels.reshape(-1).cpu()
+                pred_labels = pred_labels.view(len(pred_labels), -1)
+#                print(pred_labels.view(-1))
+#                print(output.view(-1))
+                bool_correct = torch.eq(pred_labels, labels)
+                correct += torch.sum(bool_correct).item()
+                total += len(labels)      
+        self.model.to('cpu') 
+
+
+        if type(labels_fairness)==torch.Tensor and type(pred_labels_fairness)==torch.Tensor and type(SA_fairness)==torch.Tensor:
+            labels_fairness=labels_fairness.to('cpu').numpy()
+            pred_labels_fairness=pred_labels_fairness.to('cpu').numpy()
+            SA_fairness = SA_fairness.to('cpu').numpy()
+
+        fairness_rep = discr_idx_report(SA_fairness, labels_fairness.astype(int), pred_labels_fairness.astype(int), testing_dataset.sensitive_att, testing_dataset.columns)
+        dict_metrics = {**fairness_rep}
+        accuracy = correct / total
+#        print(accuracy, dict_metrics )
+        return accuracy,  dict_metrics
+        
+        
+        
+###########################################################################################################################################################################################
+################################ MLP model
+###########################################################################################################################################################################################
+        
+ # Define the MLP model
+class MLPModel(nn.Module):
+    def __init__(self, nb_features, nb_classes):
+        super(MLPModel, self).__init__()
+        self.fc1 = nn.Linear(nb_features, 64)  # First fully connected layer
+        self.fc2 = nn.Linear(64, 32)           # Second fully connected layer
+        self.fc3 = nn.Linear(32, nb_classes)   # Output layer
+
+    def forward(self, x):
+        x = torch.relu(self.fc1(x))
+        x = torch.relu(self.fc2(x))
+        return self.fc3(x)
+ 
+class MLPPytorch(FLModel):
+    """docstring for MLPPytorch"""
+    def __init__(self, model_spec, warmup, **kwargs):
+        super(MLPPytorch, self).__init__(model_spec)
+        #self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.nb_features = model_spec['nb_inputs']
+        self.nb_classes = model_spec['nb_outputs']
+        self.model = MLPModel(self.nb_features, self.nb_classes)
+        self.nb_epochs = model_spec['nb_epochs']
+        self.batch_size = model_spec['batch_size']
+        self.learning_rate = model_spec['learning_rate']
+        optimizer_class = model_spec['optimizer_class']
+        optimizer_class = getattr(torch.optim, optimizer_class)
+        try :
+            self.weight_decay = model_spec['weight_decay']
+        except :
+            self.weight_decay = 0
+        self.optimizer = optimizer_class(self.model.parameters(), lr=self.learning_rate, weight_decay = self.weight_decay)
+        try :
+            self.learning_rate_type = model_spec['learning_rate_type']
+            if self.learning_rate_type == 'dynamic':
+                self.learning_rate_freq = model_spec['learning_rate_frequency']
+                self.learning_rate_fraction = model_spec['learning_rate_fraction']
+                self.learning_rate_min = model_spec['learning_rate_min']
+            elif self.learning_rate_type == 'scheduler':
+                scheduler_class = model_spec['scheduler_class']
+                gamma = model_spec['gamma']
+                scheduler_class = getattr(torch.optim.lr_scheduler, scheduler_class)
+                self.scheduler = scheduler_class(self.optimizer, gamma = gamma )
+        except : 
+            self.learning_rate_type = 'constant'
+        print(self.learning_rate_type)
+        print(self.learning_rate)
+        loss_class = model_spec['loss_class']
+        loss_class = getattr(nn, loss_class)
+        self.criterion = loss_class() #nn.BCEWithLogitsLoss()
+        if warmup == 1:
+            with open(model_spec["warmup_parameters_path"], "rb") as f:  # Unpickling
+                weights = pickle.load(f)
+                self.set_weights(weights)
+        
+    def init_warm_up(self, model_weights):
+        raise NotImplementedError("This function is not yet implemented.")
+        
+    def set_weights(self, model_weights):
+        self.model.load_state_dict(model_weights)
+
+    def get_weights(self):
+        return copy.deepcopy(self.model.state_dict())
+
+
+    def train(self, train_dataset, seed = 42, test = False, test_dataset = None, validation = False, validation_dataset = None):
+        self.model.train()
+        epoch_loss = []
+        # set seed
+        np.random.seed(seed)
+        random.seed(seed)
+        torch.manual_seed(seed)
+        self.model.to(self.device)
+        self.criterion.to(self.device)
+        self.train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle= True)
+        for i in range(self.nb_epochs):
+            batch_loss = []
+            for (batch_idx, (features, labels, SA)) in enumerate(self.train_loader):
+                (features, labels, SA) = (features.to(self.device), labels.to(self.device), SA.to(self.device))
+                SA = SA.view(len(SA), -1)
+                #labels = labels.view(len(labels), -1)
+                labels = labels.type(torch.LongTensor).to(self.device)
+                self.model.zero_grad()
+                outputs = self.model(features)
+                loss = self.criterion(outputs, labels)
+                loss.backward()
+                self.optimizer.step()
+                batch_loss.append(loss.item())
+            print('epoch: {}  loss: {}'.format(i, sum(batch_loss) / len(batch_loss)))
+            epoch_loss.append(sum(batch_loss) / len(batch_loss))
+            if test :
+                test_acc, test_loss, test_metrics = self.test_inference(test_dataset)
+                self.test_metrics.append([i, test_acc, test_loss,test_metrics])
+                print(test_acc)
+                self.model.train()
+            if validation :
+                pass
+            self.update_learning_rate(i)
+        return sum(epoch_loss) / len(epoch_loss)
+
+    def update_learning_rate(self, e):
+        if (self.learning_rate_type == 'dynamic') :
+            if  (e != 0) & (e % self.learning_rate_freq == 0) & (self.learning_rate > self.learning_rate_min) :
+                self.learning_rate = self.learning_rate / self.learning_rate_fraction
+                for g in self.optimizer.param_groups:
+                    g['lr'] = self.learning_rate
+        elif self.learning_rate_type == 'scheduler':
+            self.scheduler.step()
+       
+    def test_inference(self, testing_dataset, test_batch_size = 64):
+        # Returns the test accuracy and loss. 
+        test_loader = DataLoader(testing_dataset, batch_size=test_batch_size, shuffle=True)
+        model = copy.deepcopy(self.model)
+        model.to(self.device)
+        model.eval()
+        loss, total, correct = 0.0, 0.0, 0.0
+
+        criterion = self.criterion.to(self.device)
+        features_fairness = np.array([])
+        labels_fairness = np.array([])
+        pred_labels_fairness = np.array([])
+        with torch.no_grad() :
+            batch_loss = []
+            for batch_idx, (features, labels, SA) in enumerate(test_loader):
+                features_fairness = np.concatenate((features_fairness, features), axis=0) if features_fairness.size else features
+                labels_fairness = np.concatenate((labels_fairness, labels), axis=0) if labels_fairness.size else labels
+                (features, labels, SA) = (features.to(self.device), labels.to(self.device), SA.to(self.device))
+                SA = SA.view(len(SA), -1)
+                # Inference
+                labels = labels.type(torch.LongTensor).to(self.device)
+                outputs = model(features)
+                batch_loss.append(criterion(outputs, labels).item())
+                # Prediction
+                _, pred_labels = torch.max(outputs, 1)
+                pred_labels_fairness = np.concatenate((pred_labels_fairness, pred_labels.to('cpu').reshape(-1)), axis=0) if pred_labels_fairness.size else pred_labels.to('cpu').reshape(-1)
+                bool_correct = torch.eq(pred_labels, labels)
+                correct += torch.sum(bool_correct).item()
+                total += len(labels)    
+        model.to('cpu')  
+        if type(labels_fairness)==torch.Tensor and type(pred_labels_fairness)==torch.Tensor and type(features_fairness)==torch.Tensor:
+            labels_fairness=labels_fairness.to('cpu').numpy()
+            pred_labels_fairness=pred_labels_fairness.to('cpu').numpy()
+            features_fairness = features_fairness.to('cpu').numpy()
+        additional_metrics = get_eval_metrics_for_classificaton(labels_fairness.astype(int), pred_labels_fairness.astype(int))
+        fairness_rep = fairness_report(features_fairness, labels_fairness.astype(int), pred_labels_fairness.astype(int), testing_dataset.sensitive_att, np.array(self.get_weights()), testing_dataset.columns)
+        dict_metrics = {**additional_metrics, **fairness_rep}
+        loss = sum(batch_loss)/len(batch_loss)
+        accuracy = correct / total
+
+        return accuracy, loss, dict_metrics
+    
+
+ 
+  
+  
+    def test_inference_quick(self, testing_dataset, test_batch_size = 64):
+        # Returns the test accuracy and loss. 
+        test_loader = DataLoader(testing_dataset, batch_size=test_batch_size, shuffle=True)
+
+        self.model.to(self.device)
+        self.model.eval()
+        loss, total, correct = 0.0, 0.0, 0.0
+
+        criterion = self.criterion.to(self.device)
+        features_fairness = np.array([])
+        labels_fairness = np.array([])
+        pred_labels_fairness = np.array([])
+        with torch.no_grad() :
+            batch_loss = []
+            for batch_idx, (features, labels, SA) in enumerate(test_loader):
+                features_fairness = np.concatenate((features_fairness, features), axis=0) if features_fairness.size else features
+                labels_fairness = np.concatenate((labels_fairness, labels), axis=0) if labels_fairness.size else labels
+                (features, labels, SA) = (features.to(self.device), labels.to(self.device), SA.to(self.device))
+                SA = SA.view(len(SA), -1)
+                #labels = labels.view(len(labels), -1)
+                # Inference
+                labels = labels.type(torch.LongTensor).to(self.device)
+                outputs = self.model(features)
+                if torch.isnan(output).any():
+                    return -100, {'Statistical Parity Difference': [100 for i in range(testing_dataset.nb_sa)]}
+                #labels = labels.view(len(labels), -1)
+                batch_loss.append(criterion(outputs, labels).item())
+                # Prediction
+                _, pred_labels = torch.max(outputs, 1)
+                pred_labels_fairness = np.concatenate((pred_labels_fairness, pred_labels.to('cpu').reshape(-1)), axis=0) if pred_labels_fairness.size else pred_labels.to('cpu').reshape(-1)
+                bool_correct = torch.eq(pred_labels, labels)
+                correct += torch.sum(bool_correct).item()
+                total += len(labels)      
+        self.model.to('cpu')
+        if type(labels_fairness)==torch.Tensor and type(pred_labels_fairness)==torch.Tensor and type(SA_fairness)==torch.Tensor:
+            labels_fairness=labels_fairness.to('cpu').numpy()
+            pred_labels_fairness=pred_labels_fairness.to('cpu').numpy()
+            SA_fairness = SA_fairness.to('cpu').numpy()
+
+        fairness_rep = spd_report(SA_fairness, labels_fairness.astype(int), pred_labels_fairness.astype(int), testing_dataset.sensitive_att, testing_dataset.columns)
+        dict_metrics = {**fairness_rep}
+        accuracy = correct / total
+#        print(accuracy, dict_metrics )
+        return accuracy,  dict_metrics
+
+
+
+    def test_inference_quick_EOD(self, testing_dataset, test_batch_size = 64):
+        # Returns the test accuracy and loss. 
+        test_loader = DataLoader(testing_dataset, batch_size=test_batch_size, shuffle=True)
+
+        self.model.to(self.device)
+        self.model.eval()
+        loss, total, correct = 0.0, 0.0, 0.0
+
+        criterion = self.criterion.to(self.device)
+        features_fairness = np.array([])
+        labels_fairness = np.array([])
+        pred_labels_fairness = np.array([])
+        with torch.no_grad() :
+            batch_loss = []
+            for batch_idx, (features, labels, SA) in enumerate(test_loader):
+                features_fairness = np.concatenate((features_fairness, features), axis=0) if features_fairness.size else features
+                labels_fairness = np.concatenate((labels_fairness, labels), axis=0) if labels_fairness.size else labels
+                (features, labels, SA) = (features.to(self.device), labels.to(self.device), SA.to(self.device))
+                SA = SA.view(len(SA), -1)
+                #labels = labels.view(len(labels), -1)
+                # Inference
+                labels = labels.type(torch.LongTensor).to(self.device)
+                outputs = self.model(features)
+                if torch.isnan(output).any():
+                    return -100, {'Equal Opportunity Difference': [100 for i in range(testing_dataset.nb_sa)]}
+                #labels = labels.view(len(labels), -1)
+                batch_loss.append(criterion(outputs, labels).item())
+                # Prediction
+                _, pred_labels = torch.max(outputs, 1)
+                pred_labels_fairness = np.concatenate((pred_labels_fairness, pred_labels.to('cpu').reshape(-1)), axis=0) if pred_labels_fairness.size else pred_labels.to('cpu').reshape(-1)
+                bool_correct = torch.eq(pred_labels, labels)
+                correct += torch.sum(bool_correct).item()
+                total += len(labels)      
+        self.model.to('cpu')
+        if type(labels_fairness)==torch.Tensor and type(pred_labels_fairness)==torch.Tensor and type(SA_fairness)==torch.Tensor:
+            labels_fairness=labels_fairness.to('cpu').numpy()
+            pred_labels_fairness=pred_labels_fairness.to('cpu').numpy()
+            SA_fairness = SA_fairness.to('cpu').numpy()
+
+        fairness_rep = eod_report(SA_fairness, labels_fairness.astype(int), pred_labels_fairness.astype(int), testing_dataset.sensitive_att, testing_dataset.columns)
+        dict_metrics = {**fairness_rep}
+        accuracy = correct / total
+#        print(accuracy, dict_metrics )
+        return accuracy,  dict_metrics
+
+    def test_inference_quick_discr_idx(self, testing_dataset, test_batch_size = 64):
+        # Returns the test accuracy and loss. 
+        test_loader = DataLoader(testing_dataset, batch_size=test_batch_size, shuffle=True)
+
+        self.model.to(self.device)
+        self.model.eval()
+        loss, total, correct = 0.0, 0.0, 0.0
+
+        criterion = self.criterion.to(self.device)
+        features_fairness = np.array([])
+        labels_fairness = np.array([])
+        pred_labels_fairness = np.array([])
+        with torch.no_grad() :
+            batch_loss = []
+            for batch_idx, (features, labels, SA) in enumerate(test_loader):
+                features_fairness = np.concatenate((features_fairness, features), axis=0) if features_fairness.size else features
+                labels_fairness = np.concatenate((labels_fairness, labels), axis=0) if labels_fairness.size else labels
+                (features, labels, SA) = (features.to(self.device), labels.to(self.device), SA.to(self.device))
+                SA = SA.view(len(SA), -1)
+                #labels = labels.view(len(labels), -1)
+                # Inference
+                labels = labels.type(torch.LongTensor).to(self.device)
+                outputs = self.model(features)
+                if torch.isnan(output).any():
+                    return -100, {'Discrimination Index': [100 for i in range(testing_dataset.nb_sa)]}
+                #labels = labels.view(len(labels), -1)
+                batch_loss.append(criterion(outputs, labels).item())
+                # Prediction
+                _, pred_labels = torch.max(outputs, 1)
+                pred_labels_fairness = np.concatenate((pred_labels_fairness, pred_labels.to('cpu').reshape(-1)), axis=0) if pred_labels_fairness.size else pred_labels.to('cpu').reshape(-1)
+                bool_correct = torch.eq(pred_labels, labels)
+                correct += torch.sum(bool_correct).item()
+                total += len(labels)      
+        self.model.to('cpu')
+        if type(labels_fairness)==torch.Tensor and type(pred_labels_fairness)==torch.Tensor and type(SA_fairness)==torch.Tensor:
+            labels_fairness=labels_fairness.to('cpu').numpy()
+            pred_labels_fairness=pred_labels_fairness.to('cpu').numpy()
+            SA_fairness = SA_fairness.to('cpu').numpy()
+
+        fairness_rep = discr_idx_report(SA_fairness, labels_fairness.astype(int), pred_labels_fairness.astype(int), testing_dataset.sensitive_att, testing_dataset.columns)
+        dict_metrics = {**fairness_rep}
+        accuracy = correct / total
+#        print(accuracy, dict_metrics )
         return accuracy,  dict_metrics

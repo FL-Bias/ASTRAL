@@ -1,0 +1,53 @@
+{
+   "fl_parameters":{
+      "nb_runs":1,
+      "nb_rounds":45,
+      "nb_clients":4,
+      "ratio_of_participating_clients":1,
+      "participants_selection_method":"random",
+      "aggregation_method":"fed_avg",
+      "metrics_collection_path":"./astral-experiments/CELEBA/FairFL*/Metrics",
+      "warmup":0
+   },
+   "fl_data_preparation_info":{
+      "initial_data_preparation":0,
+      "save_generated_datasets":0
+   },
+   "learning_info":{
+      "model_name":"Resnet",
+      "model_class":"ResnetPytorch",
+      "nb_inputs":3074,
+      "nb_tabular_inputs":2,
+      "nb_outputs":1,
+      "nb_epochs":10,
+      "batch_size":1024,
+      "learning_rate":0.01,
+      "learning_rate_type":"dynamic",
+      "learning_rate_frequency":5,
+      "learning_rate_fraction":10,
+      "learning_rate_min":1e-07,
+      "weight_decay":0.05,
+      "optimizer_class":"SGD",
+      "loss_class":"BCEWithLogitsLoss",
+      "byzantine":0
+   },
+   "data_info":{
+      "name":"CELEBA",
+      "sensitive_att_name":["gender", "age"],
+      "target_var_name":"smiling",
+      "nb_classes":2,
+      "nb_features":134,
+      "celeba_path":"./astral-datasets/CELEBA", 
+      "standardization":0,
+      "distribution": "non-iid",
+      "alpha":1
+   },
+   "bias_mitigation_info":{
+      "bias_mitigation_name":"PW",
+      "fairness_metric_name":"Discrimination Index",
+      "e_min":[-0.03,-0.03],
+      "e_max":[0.03,0.03],
+      "dynamic": 0
+   },
+   "remark":"FairFL* celeba"
+}

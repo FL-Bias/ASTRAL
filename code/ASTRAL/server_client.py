@@ -99,7 +99,8 @@ class Server(object):
     def update_global_model(self, global_weights):
         self.set_model_weights(global_weights)
 
-
+    def update_global_model_by_state(self, state):
+        self.global_model.model.load_state_dict(state)
 
     def gaussian_noise(self, data_shape, s, sigma):
         """
@@ -126,6 +127,8 @@ class Server(object):
         self.global_model = global_model
 
         return global_model
+
+
     def weighted_average_weights(self, w, nc, method, byzantine = None):
         start = timer()
         #performs aggregation
@@ -135,7 +138,29 @@ class Server(object):
                     if j > 0:
                         w[i] = np.random.multivariate_normal(np.zeros(100), j ** 2 * np.identity(100), size=1).tolist()[0]
         print("performing aggregation")
-        if method == 'fed_avg':
+        
+
+        if method == 'fed_avg' and ( isinstance(self.global_model, ResnetPytorch) or  isinstance(self.global_model, MLPPytorch)):
+
+            print("classical average aggregation")
+           
+            n = sum(nc)
+            print(nc,n)
+            w_avg = {}
+            w_avg = copy.deepcopy(w[0])
+
+            for key in w_avg.keys():
+                w_avg[key] = w_avg[key] * nc[0]
+
+            for key in w_avg.keys():
+                for i in range(1, len(w)):
+                    w_avg[key] += (nc[i] * w[i][key])
+                w_avg[key] = torch.div(w_avg[key], sum(nc))
+            self.update_global_model_by_state(w_avg)
+            end = timer()
+            return copy.deepcopy(self.global_model), end-start
+
+        elif method == 'fed_avg':
             '''classical average aggregation'''
             print("classical average aggregation")
             w_avg = copy.deepcopy(w)
@@ -150,7 +175,7 @@ class Server(object):
             self.update_global_model(w_avg)
             end = timer()
             return copy.deepcopy(self.global_model), end-start
-
+        
         if method == 'loss_obj_fair_const+':
             #classical average aggregation
             print("classical average aggregation")
@@ -297,11 +322,15 @@ class Server(object):
 
     def test_inference(self):
         # Returns the test accuracy and loss.
+        print('teeeeeeeeeest')
+        print(len(self.testing_dataset))
         accuracy, loss, metrics= self.global_model.test_inference(self.testing_dataset, self.test_batch_size)
         return accuracy, loss, metrics
 
     def validation(self):
         # Returns the test accuracy and loss. """
+        print('vaaaaaaaaaalid')
+        print(len(self.validation_dataset))
         accuracy, loss, metrics = self.global_model.test_inference(self.validation_dataset, self.test_batch_size)
         return accuracy, loss, metrics
     
@@ -409,6 +438,65 @@ class Server(object):
 
     def Astral_optim_aggregation(self, metric_name, local_models, clients_weights, nc, FL_round, byzantine, BiasMitigation_info,clientvalid_metrics):
         start=timer()
+
+        if ((BiasMitigation_info['variant'] == "differential_evolution")): 
+            # CURRENT ASTRAL-Hrt optimization method
+            try:
+                workers = BiasMitigation_info['worker']
+            except:
+                workers = -1
+            try:
+                maxiter = BiasMitigation_info['maxiter']
+            except:
+                maxiter = 1000
+            try:
+                popsize = BiasMitigation_info['popsize']
+            except:
+                popsize = 15
+            try:
+                tol = BiasMitigation_info['tol']
+            except:
+                tol = 0.01
+            try:
+                mutation = tuple(BiasMitigation_info['mutation'])
+            except:
+                mutation = (0.5,1)
+            try:
+                recombination = BiasMitigation_info['recombination']
+            except:
+                recombination = 0.7
+            opt = DE_alpha_search(metric_name, copy.deepcopy(clients_weights), self.global_model_variable,self.validation_dataset,nc,BiasMitigation_info['eps'],mutation,recombination, workers,maxiter,popsize,tol)
+            a = opt.get_alpha()
+            print(a)
+            self.weighted_average_weights(clients_weights, a, 'fed_avg', byzantine)
+            end=timer()
+            return (copy.deepcopy(self.global_model)), end-start
+        elif BiasMitigation_info['variant'] == "differential_evolution_rwgt":
+            # other explored method using differential evolution to find parameters of fedavg+rwgt (not studied)
+            opt = DE_alpha_Rwgt_search(metric_name, copy.deepcopy(clients_weights), self.global_model_variable,self.validation_dataset,nc,BiasMitigation_info['eps'],clientvalid_metrics,nc)
+            a = opt.get_alpha()
+            if a == 0 :
+                a=nc
+            print(a)
+            end=timer()
+            return (copy.deepcopy(self.global_model)), end-start
+        elif ((BiasMitigation_info['variant'] == "CMA")):
+            try:
+                workers = BiasMitigation_info['worker']
+            except:
+                workers = -1
+            try:
+                maxiter = BiasMitigation_info['maxiter']
+            except:
+                maxiter = 1000
+            opt = CMAES_alpha_search(metric_name, copy.deepcopy(clients_weights), self.global_model_variable,self.validation_dataset,nc,BiasMitigation_info['eps'],workers,maxiter)
+            a = opt.get_alpha()
+            if a == 0 :
+                end=timer()
+                return (copy.deepcopy(self.global_model)), end-start
+
+
+
         X = self.get_validation_dataset().data.float()
         Y = self.get_validation_dataset().target.float()
         A = self.get_validation_dataset().sa.float()
@@ -443,57 +531,7 @@ class Server(object):
             # Explored derivative-free optimization method 
             opt = Bayesian_alpha_search(copy.deepcopy(clients_weights), self.global_model_variable,self.validation_dataset,self.fed_avg_weights,BiasMitigation_info['eps'])
             a = opt.get_alpha()
-        elif ((BiasMitigation_info['variant'] == "differential_evolution")): 
-            # CURRENT ASTRAL-Hrt optimization method
-            try:
-                workers = BiasMitigation_info['worker']
-            except:
-                workers = -1
-            try:
-                maxiter = BiasMitigation_info['maxiter']
-            except:
-                maxiter = 1000
-            try:
-                popsize = BiasMitigation_info['popsize']
-            except:
-                popsize = 15
-            try:
-                tol = BiasMitigation_info['tol']
-            except:
-                tol = 0.01
-            try:
-                mutation = tuple(BiasMitigation_info['mutation'])
-            except:
-                mutation = (0.5,1)
-            try:
-                recombination = BiasMitigation_info['recombination']
-            except:
-                recombination = 0.7
-            opt = DE_alpha_search(metric_name, copy.deepcopy(clients_weights), self.global_model_variable,self.validation_dataset,nc,BiasMitigation_info['eps'],mutation,recombination, workers,maxiter,popsize,tol)
-            a = opt.get_alpha()
-            if a == 0 :
-                end=timer()
-                return (copy.deepcopy(self.global_model)), end-start
-        elif BiasMitigation_info['variant'] == "differential_evolution_rwgt":
-            # other explored method using differential evolution to find parameters of fedavg+rwgt (not studied)
-            opt = DE_alpha_Rwgt_search(metric_name, copy.deepcopy(clients_weights), self.global_model_variable,self.validation_dataset,nc,BiasMitigation_info['eps'],clientvalid_metrics,nc)
-            a = opt.get_alpha()
-            if a == 0 :
-                a=nc
-        elif ((BiasMitigation_info['variant'] == "CMA")):
-            try:
-                workers = BiasMitigation_info['worker']
-            except:
-                workers = -1
-            try:
-                maxiter = BiasMitigation_info['maxiter']
-            except:
-                maxiter = 1000
-            opt = CMAES_alpha_search(metric_name, copy.deepcopy(clients_weights), self.global_model_variable,self.validation_dataset,nc,BiasMitigation_info['eps'],workers,maxiter)
-            a = opt.get_alpha()
-            if a == 0 :
-                end=timer()
-                return (copy.deepcopy(self.global_model)), end-start
+
         else:
             print("Variant {} not supported by ASTRAL_OPT.".format(BiasMitigation_info.variant))
             end=timer()

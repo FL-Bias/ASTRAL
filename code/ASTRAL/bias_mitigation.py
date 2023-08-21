@@ -35,7 +35,7 @@ class FLBase:
         self.weights_list: List = []
 
     def run(self):
-        nb_clients = self.FL_parameters["nb_clients"]
+        nb_clients = int(self.FL_parameters["nb_clients"] * self.FL_parameters["ratio_of_participating_clients"])
         nb_runs = self.FL_parameters["nb_runs"]
         try:
             self.cdp = bool(self.FL_parameters["cdp"])
@@ -648,7 +648,7 @@ class FairFed(BiasMitigationBase):
                     # print('EOD {} weight {}'.format(local_bias, agg_weight))
                 elif fairfed_metric_name == 'Discrimination Index':
                     agg_weight = (clients_idx[i] *self.prelec_function_DI(n_yz_c[i],beta,n_yz)) /sum(clients_idx)
-                    print('DI {} fairfed weight {} weight {}'.format(self.DI(n_yz_c[i]),self.prelec_function_DI(n_yz_c[i],beta,n_yz), agg_weight))
+                    print('DI {} weight {}'.format(self.DI(n_yz_c[i]), agg_weight))
                 IBW_agg_weights_list.append(agg_weight)
             print('Aggregation weights for round {} : {} '.format(round_, IBW_agg_weights_list))
             upstream = upstream + len(local_weights_list) * len(local_weights_list[0])
